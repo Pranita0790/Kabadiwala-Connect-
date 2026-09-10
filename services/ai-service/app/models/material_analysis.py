@@ -11,7 +11,7 @@ MaterialName = Literal[
     "battery",
     "motor",
     "magnet_bearing_assembly",
-    "mixed_plastic",
+    "mixed_plastics",
     "unknown",
 ]
 
@@ -23,3 +23,4 @@ class MaterialAnalysisResponse(BaseModel):
     critical_mineral_reason: str | None
     model_version: str
     rule_version: str
+    supported_materials: list[MaterialName]

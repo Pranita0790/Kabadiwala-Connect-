@@ -5,6 +5,8 @@ import torch
 from PIL import Image
 from torchvision import models, transforms
 
+from app.services.material_capabilities import MODEL_SUPPORTED_MATERIALS
+
 
 @dataclass(frozen=True)
 class MaterialClassification:
@@ -44,7 +46,14 @@ def _load_model():
         map_location=DEVICE,
     )
 
-    class_names = checkpoint["class_names"]
+    class_names = tuple(checkpoint["class_names"])
+
+    unexpected_classes = set(class_names) - set(MODEL_SUPPORTED_MATERIALS)
+
+    if unexpected_classes:
+        raise ValueError(
+            f"Model contains unsupported material classes: {unexpected_classes}"
+        )
 
     model = models.mobilenet_v3_small(weights=None)
 
