@@ -2,6 +2,7 @@
 
 from app.models.material_analysis import MaterialAnalysisResponse
 from app.services.critical_mineral import check_critical_mineral
+from app.services.estimation import estimate_value, estimate_weight
 from app.services.material_capabilities import MODEL_SUPPORTED_MATERIALS
 from app.services.material_classifier import (
     MODEL_VERSION,
@@ -27,4 +28,6 @@ def analyze_material(
         model_version=MODEL_VERSION,
         rule_version=critical_result.rule_version,
         supported_materials=list(MODEL_SUPPORTED_MATERIALS),
+        weight_estimate=estimate_weight(),
+        value_estimate=estimate_value(),
     )

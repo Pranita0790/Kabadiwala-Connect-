@@ -2,6 +2,9 @@
 
 from pydantic import BaseModel, Field
 
+from app.models.value_estimation import ValueEstimate
+from app.models.weight_estimation import WeightEstimate
+
 
 MaterialName = Literal[
     "crt",
@@ -24,3 +27,5 @@ class MaterialAnalysisResponse(BaseModel):
     model_version: str
     rule_version: str
     supported_materials: list[MaterialName]
+    weight_estimate: WeightEstimate
+    value_estimate: ValueEstimate
