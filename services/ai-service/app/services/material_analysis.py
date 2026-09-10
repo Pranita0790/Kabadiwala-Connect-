@@ -1,4 +1,6 @@
-﻿from app.models.material_analysis import MaterialAnalysisResponse
+﻿from PIL import Image
+
+from app.models.material_analysis import MaterialAnalysisResponse
 from app.services.critical_mineral import check_critical_mineral
 from app.services.material_classifier import (
     MODEL_VERSION,
@@ -6,10 +8,15 @@ from app.services.material_classifier import (
 )
 
 
-def analyze_material() -> MaterialAnalysisResponse:
-    classification = classify_material()
+def analyze_material(
+    image: Image.Image,
+) -> MaterialAnalysisResponse:
 
-    critical_result = check_critical_mineral(classification.material)
+    classification = classify_material(image)
+
+    critical_result = check_critical_mineral(
+        classification.material
+    )
 
     return MaterialAnalysisResponse(
         material=classification.material,
