@@ -29,5 +29,5 @@ def analyze_material(
         rule_version=critical_result.rule_version,
         supported_materials=list(MODEL_SUPPORTED_MATERIALS),
         weight_estimate=estimate_weight(),
-        value_estimate=estimate_value(),
+       value_estimate=estimate_value(classification.material),
     )
