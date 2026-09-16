@@ -1,8 +1,10 @@
-﻿from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field
 
 
 class MaterialRate(BaseModel):
     material: str
+    subcategory: str | None = None
+    city: str
     rate_per_kg_inr: float = Field(ge=0.0)
     currency: str = "INR"
     source: str

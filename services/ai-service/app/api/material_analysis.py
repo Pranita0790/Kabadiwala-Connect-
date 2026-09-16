@@ -1,6 +1,6 @@
-﻿from io import BytesIO
+from io import BytesIO
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
 
 from app.models.material_analysis import MaterialAnalysisResponse
@@ -12,6 +12,7 @@ router = APIRouter(
     tags=["Material Analysis"],
 )
 
+
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
 
@@ -21,9 +22,22 @@ MAX_IMAGE_SIZE = 10 * 1024 * 1024
 )
 async def analyze(
     file: UploadFile = File(...),
+    weight_kg: float | None = Form(default=None),
 ) -> MaterialAnalysisResponse:
 
-    if not file.content_type or not file.content_type.startswith("image/"):
+    if (
+        weight_kg is not None
+        and weight_kg <= 0
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="weight_kg must be greater than 0.",
+        )
+
+    if (
+        not file.content_type
+        or not file.content_type.startswith("image/")
+    ):
         raise HTTPException(
             status_code=400,
             detail="Only image files are supported.",
@@ -38,13 +52,26 @@ async def analyze(
         )
 
     try:
-        image = Image.open(BytesIO(image_bytes))
+        image = Image.open(
+            BytesIO(image_bytes)
+        )
+
         image.verify()
-        image = Image.open(BytesIO(image_bytes)).convert("RGB")
-    except (UnidentifiedImageError, OSError):
+
+        image = Image.open(
+            BytesIO(image_bytes)
+        ).convert("RGB")
+
+    except (
+        UnidentifiedImageError,
+        OSError,
+    ):
         raise HTTPException(
             status_code=400,
             detail="Invalid or unreadable image.",
         )
 
-    return analyze_material(image)
+    return analyze_material(
+        image,
+        weight_kg=weight_kg,
+    )

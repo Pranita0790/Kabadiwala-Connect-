@@ -1,29 +1,36 @@
-﻿from app.models.critical_mineral import CriticalMineralCheckResponse
+from app.models.critical_mineral import CriticalMineralCheckResponse
 
 
-RULE_VERSION = "critical-mineral-rules-0.1.0"
+RULE_VERSION = "critical-mineral-rules-0.2.0"
 
-
-# Initial demo rules.
-# These rules are intentionally conservative and configurable.
-# They indicate potential critical-mineral relevance based on
-# material category; they do not prove elemental composition.
 
 POTENTIAL_CRITICAL_MINERAL_MATERIALS = {
-    "electronic_waste",
+    "battery",
     "lithium_battery",
+    "pcb",
+    "electronic_waste",
 }
 
 
-def check_critical_mineral(material: str) -> CriticalMineralCheckResponse:
-    normalized_material = material.strip().lower().replace(" ", "_")
+def check_critical_mineral(
+    material: str,
+) -> CriticalMineralCheckResponse:
+
+    normalized_material = (
+        material.strip()
+        .lower()
+        .replace(" ", "_")
+    )
 
     if normalized_material in POTENTIAL_CRITICAL_MINERAL_MATERIALS:
+
         return CriticalMineralCheckResponse(
             material=normalized_material,
             critical_mineral=True,
             critical_mineral_reason=(
-                "Potential critical mineral-bearing material category detected."
+                "This material category may contain or be associated "
+                "with critical-mineral-bearing components. "
+                "Material-specific verification is required."
             ),
             rule_version=RULE_VERSION,
         )

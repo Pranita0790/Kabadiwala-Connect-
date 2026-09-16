@@ -1,4 +1,4 @@
-﻿from PIL import Image
+from PIL import Image
 
 from app.models.material_analysis import MaterialAnalysisResponse
 from app.services.critical_mineral import check_critical_mineral
@@ -12,6 +12,7 @@ from app.services.material_classifier import (
 
 def analyze_material(
     image: Image.Image,
+    weight_kg: float | None = None,
 ) -> MaterialAnalysisResponse:
 
     classification = classify_material(image)
@@ -28,6 +29,9 @@ def analyze_material(
         model_version=MODEL_VERSION,
         rule_version=critical_result.rule_version,
         supported_materials=list(MODEL_SUPPORTED_MATERIALS),
-        weight_estimate=estimate_weight(),
-       value_estimate=estimate_value(classification.material),
+        weight_estimate=estimate_weight(weight_kg),
+        value_estimate=estimate_value(
+            classification.material,
+            weight_kg,
+        ),
     )

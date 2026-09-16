@@ -14,6 +14,8 @@ SUPPORTED_MATERIALS: Final[tuple[str, ...]] = (
 
 MODEL_SUPPORTED_MATERIALS: Final[tuple[str, ...]] = (
     "crt",
+    "lcd_panel",
     "pcb",
+    "cable",
     "battery",
 )

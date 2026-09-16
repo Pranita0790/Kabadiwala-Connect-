@@ -14,14 +14,14 @@ class MaterialClassification:
     confidence: float
 
 
-MODEL_VERSION = "baseline-3class-v1"
+MODEL_VERSION = "sih-5class-v1"
 CONFIDENCE_THRESHOLD = 0.60
 
 MODEL_PATH = (
     Path(__file__).resolve().parents[4]
     / "data"
     / "processed"
-    / "baseline_clean"
+    / "sih_5class"
     / "training"
     / "best_model.pth"
 )
@@ -48,23 +48,34 @@ def _load_model():
 
     class_names = tuple(checkpoint["class_names"])
 
-    unexpected_classes = set(class_names) - set(MODEL_SUPPORTED_MATERIALS)
+    unexpected_classes = (
+        set(class_names)
+        - set(MODEL_SUPPORTED_MATERIALS)
+    )
 
     if unexpected_classes:
         raise ValueError(
-            f"Model contains unsupported material classes: {unexpected_classes}"
+            f"Model contains unsupported material classes: "
+            f"{unexpected_classes}"
         )
 
-    model = models.mobilenet_v3_small(weights=None)
+    model = models.mobilenet_v3_small(
+        weights=None
+    )
 
-    in_features = model.classifier[-1].in_features
+    in_features = (
+        model.classifier[-1].in_features
+    )
 
     model.classifier[-1] = torch.nn.Linear(
         in_features,
         len(class_names),
     )
 
-    model.load_state_dict(checkpoint["model_state_dict"])
+    model.load_state_dict(
+        checkpoint["model_state_dict"]
+    )
+
     model.to(DEVICE)
     model.eval()
 
@@ -80,23 +91,37 @@ def classify_material(
 
     image = image.convert("RGB")
 
-    tensor = _transform(image).unsqueeze(0)
+    tensor = _transform(
+        image
+    ).unsqueeze(0)
 
     with torch.no_grad():
+
         outputs = _model(tensor)
-        probabilities = torch.softmax(outputs, dim=1)
 
-    confidence, predicted_index = probabilities.max(dim=1)
+        probabilities = torch.softmax(
+            outputs,
+            dim=1,
+        )
 
-    confidence_value = float(confidence.item())
+    confidence, predicted_index = (
+        probabilities.max(dim=1)
+    )
+
+    confidence_value = float(
+        confidence.item()
+    )
 
     if confidence_value < CONFIDENCE_THRESHOLD:
+
         return MaterialClassification(
             material="unknown",
             confidence=confidence_value,
         )
 
-    material = _class_names[predicted_index.item()]
+    material = _class_names[
+        predicted_index.item()
+    ]
 
     return MaterialClassification(
         material=material,
