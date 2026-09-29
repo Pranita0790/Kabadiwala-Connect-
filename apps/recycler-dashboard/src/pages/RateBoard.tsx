@@ -23,7 +23,7 @@ import {
     updatedAt: string;
   };
   
-  const API_BASE = "http://localhost:5000/api";
+  const API_BASE = "https://kabadiwala-backend-69wr.onrender.com/api";
   
   export default function RateBoard() {
     const [rates, setRates] = useState<Rate[]>([]);

@@ -6,7 +6,7 @@ const traceabilityRoutes = require("./routes/traceability.routes");
 
 const app = express();
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 
 /*
@@ -17,7 +17,11 @@ const PORT = 5000;
 
 app.use(
   cors({
-    origin: "http://localhost:5174",
+    origin: [
+      "http://localhost:5174",
+      "http://localhost:5173",
+      "https://kabadiwala-connect-xi.vercel.app",
+    ],
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -102,8 +106,8 @@ app.use((req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(
-    `Kabadiwala backend running on http://localhost:${PORT}`
+    `Kabadiwala backend running on port ${PORT}`
   );
 });
