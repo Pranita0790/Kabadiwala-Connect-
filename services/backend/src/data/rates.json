@@ -1,0 +1,66 @@
+[
+  {
+    "id": "pcb",
+    "material": "PCB",
+    "category": "E-Waste",
+    "ratePerKg": 448,
+    "unit": "₹/kg",
+    "updatedAt": "17 Sep 2026"
+  },
+  {
+    "id": "battery",
+    "material": "Battery",
+    "category": "Critical Material",
+    "ratePerKg": 100,
+    "unit": "₹/kg",
+    "updatedAt": "17 Sep 2026"
+  },
+  {
+    "id": "cable",
+    "material": "Cable",
+    "category": "Copper",
+    "ratePerKg": 396,
+    "unit": "₹/kg",
+    "updatedAt": "17 Sep 2026"
+  },
+  {
+    "id": "lcd-panel",
+    "material": "LCD Panel",
+    "category": "E-Waste",
+    "ratePerKg": 180,
+    "unit": "₹/kg",
+    "updatedAt": "17 Sep 2026"
+  },
+  {
+    "id": "crt",
+    "material": "CRT",
+    "category": "E-Waste",
+    "ratePerKg": 85,
+    "unit": "₹/kg",
+    "updatedAt": "17 Sep 2026"
+  },
+  {
+    "id": "motor",
+    "material": "Motor",
+    "category": "Metal",
+    "ratePerKg": 220,
+    "unit": "₹/kg",
+    "updatedAt": "17 Sep 2026"
+  },
+  {
+    "id": "magnet-bearing-assembly",
+    "material": "Magnet/Bearing Assembly",
+    "category": "Critical Material",
+    "ratePerKg": 350,
+    "unit": "₹/kg",
+    "updatedAt": "17 Sep 2026"
+  },
+  {
+    "id": "mixed-plastics",
+    "material": "Mixed Plastics",
+    "category": "Plastic",
+    "ratePerKg": 45,
+    "unit": "₹/kg",
+    "updatedAt": "17 Sep 2026"
+  }
+]
