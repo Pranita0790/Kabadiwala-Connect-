@@ -131,40 +131,9 @@ The Node.js/Express backend is the primary application gateway.
 
 The production Flutter application does not directly depend on the FastAPI service.
 
-```mermaid
-flowchart TB
+![Kabadiwala Connect Architecture](docs/architecture/kabadiwala-connect-architecture.png)
 
-    C["Collector App<br/>Flutter + SQLite"]
-
-    B["Node.js / Express<br/>Backend Gateway"]
-
-    AI["FastAPI<br/>AI Service"]
-
-    M["MobileNetV3-Small<br/>PyTorch Model"]
-
-    MC["Material<br/>Classification"]
-
-    CM["Critical-Mineral<br/>Rule Engine"]
-
-    VE["Indicative Value<br/>Estimation"]
-
-    L["Traceable<br/>Lot Record"]
-
-    R["Recycler Dashboard<br/>React + Vite"]
-
-    C -->|"HTTPS / REST"| B
-    B -->|"AI Request"| AI
-    AI --> M
-    M --> MC
-    MC --> CM
-    CM --> VE
-    VE --> B
-    B --> L
-    L --> C
-
-    R -->|"REST API"| B
-    B --> R
-AI Pipeline
+### AI Pipeline
 
 The complete AI flow is:
 
