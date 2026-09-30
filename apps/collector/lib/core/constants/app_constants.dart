@@ -1,6 +1,12 @@
 class AppConstants {
+
   static const String appName = 'Kabadiwala Connect';
+
+  static const String apiBaseUrl =
+      'https://kabadiwala-backend-69wr.onrender.com/api';
+
   static const String appVersion = '1.0.0';
+
   static const String logoAsset = 'assets/images/kabadiwala_connect_logo.png';
   static const String dbName = 'kabadiwala_collector.db';
   static const int dbVersion = 2;

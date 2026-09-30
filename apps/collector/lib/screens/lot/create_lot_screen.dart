@@ -5,6 +5,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/utils/formatters.dart';
 import '../../repositories/lot_repository.dart';
 import '../../services/ai_classification_service.dart';
+import '../../services/remote_ai_classification_service.dart';
 import '../../widgets/custom_button.dart';
 
 class CreateLotScreen extends StatefulWidget {
@@ -27,12 +28,21 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
   late final AiClassificationService _aiService;
   final TextEditingController _notesController = TextEditingController();
 
+  // Configure AI service implementation
+  // Flutter calls the Node.js backend; the backend forwards to FastAPI internally.
+  static const bool _useMockAi = bool.fromEnvironment('USE_MOCK_AI', defaultValue: false);
+  static const String _backendUrl = String.fromEnvironment('BACKEND_URL', defaultValue: 'http://10.0.2.2:5000');
+
   @override
   void initState() {
     super.initState();
     _lotRepository = widget.lotRepository ?? LotRepository();
-    _aiService = widget.aiService ?? MockAiClassificationService();
+    _aiService = widget.aiService ?? 
+        (_useMockAi 
+            ? MockAiClassificationService() 
+            : RemoteAiClassificationService(baseUrl: _backendUrl));
   }
+
 
   String? _imagePath;
   String _selectedCategoryId = 'pcb_motherboard';

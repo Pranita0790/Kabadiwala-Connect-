@@ -23,6 +23,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   sqflite_common_ffi: ^2.3.2
   qr_flutter: ^4.1.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

@@ -3,6 +3,7 @@ const cors = require("cors");
 
 const lotsRoutes = require("./routes/lots.routes");
 const traceabilityRoutes = require("./routes/traceability.routes");
+const aiRoutes = require("./routes/ai.routes");
 
 const app = express();
 
@@ -66,6 +67,11 @@ app.use(
   ratesRoutes
 );
 
+app.use(
+  "/api/ai",
+  aiRoutes
+);
+
 
 /*
 |--------------------------------------------------------------------------
@@ -81,6 +87,7 @@ app.get("/", (req, res) => {
       health: "/health",
       lots: "/api/lots",
       traceability: "/api/traceability",
+      ai: "/api/ai/analyze",
     },
   });
 });
@@ -106,8 +113,12 @@ app.use((req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `Kabadiwala backend running on port ${PORT}`
-  );
-});
+if (require.main === module) {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(
+      `Kabadiwala backend running on port ${PORT}`
+    );
+  });
+}
+
+module.exports = app;
