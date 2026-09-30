@@ -62,7 +62,9 @@ Battery
 CRT
 LCD Panel
 Cable
-🔎 Critical-Mineral Intelligence
+```
+
+### 🔎 Critical-Mineral Intelligence
 
 After material classification, a rule-based intelligence layer evaluates whether the identified material has potential critical-mineral relevance.
 
@@ -137,6 +139,7 @@ The production Flutter application does not directly depend on the FastAPI servi
 
 The complete AI flow is:
 
+```text
 Image Capture
      ↓
 Flutter Collector App
@@ -160,7 +163,9 @@ Indicative Value Logic
 Node.js Backend
      ↓
 Collector App
-Verified Integration
+```
+
+### Verified Integration
 
 The AI pipeline has been tested through the real gateway path:
 
