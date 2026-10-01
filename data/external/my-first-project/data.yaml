@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 7
+names: ['-', '- collaborate with your team on computer vision projects', '- understand and search unstructured image data', '- use active learning to improve your dataset over time', 'Roboflow is an end-to-end computer vision platform that helps you', 'boost - v3 2025-04-11 10-20am', 'visit https-github-com-roboflow-notebooks']
+
+roboflow:
+  workspace: bearing-assembly
+  project: my-first-project-lap5n
+  version: 5
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/bearing-assembly/my-first-project-lap5n/dataset/5

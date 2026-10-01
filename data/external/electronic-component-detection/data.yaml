@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 6
+names: ['Arduino', 'Battery', 'Display', 'Esp32', 'Motor', 'sensor']
+
+roboflow:
+  workspace: labib-projects
+  project: electronic-component-detection-r2mbp
+  version: 4
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/labib-projects/electronic-component-detection-r2mbp/dataset/4
