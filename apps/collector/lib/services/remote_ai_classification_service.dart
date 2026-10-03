@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
+import '../core/constants/app_constants.dart';
 import 'ai_classification_service.dart';
 
 /// Calls the Node.js backend AI gateway for e-waste classification.
@@ -12,7 +13,9 @@ class RemoteAiClassificationService implements AiClassificationService {
   final http.Client _client;
   
   RemoteAiClassificationService({
-    this.baseUrl = 'http://10.0.2.2:5000', // Node.js backend (Android emulator loopback)
+    // Node.js backend host (production by default). Override with
+    // --dart-define=BACKEND_URL=http://10.0.2.2:PORT for a local server.
+    this.baseUrl = AppConstants.apiHost,
     http.Client? client,
   }) : _client = client ?? http.Client();
 

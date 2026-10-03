@@ -1,6 +1,5 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../core/constants/app_constants.dart';
+import 'backend_api_client.dart';
 import '../models/app_notification.dart';
 import '../models/e_waste_lot.dart';
 import '../models/handover.dart';
@@ -464,20 +463,192 @@ class MockApiService implements ApiService {
   }
 }
 
-/// Remote implementation of [ApiService].
-/// Uses mock responses until the live backend API contracts are supplied.
+/// Remote implementation of [ApiService] backed by the deployed Node.js API.
+///
+/// Connected endpoints:
+///   - `POST /api/lots`            lot upload (offline sync)
+///   - `POST /api/lots/sync`       idempotent lot sync by client reference
+///   - `GET  /api/prices`          rate card (alias of `/api/rates`)
+///
+/// Endpoints the backend does not expose yet (recycler matching, handovers,
+/// transactions, notifications, price alerts) keep the local mock so the UI
+/// stays functional. Replace each `_mock` call once the endpoint lands.
+///
+/// Network failures on the connected endpoints are surfaced as failures (not
+/// mock successes) so the sync queue retries them rather than marking a lot
+/// synced when the server never saw it.
 class RemoteApiService implements ApiService {
-  final MockApiService _mock = MockApiService();
+  final MockApiService _mock;
+  final BackendApiClient _client;
+
+  RemoteApiService({MockApiService? fallback, BackendApiClient? client})
+      : _mock = fallback ?? MockApiService(),
+        _client = client ?? BackendApiClient.instance;
+
+  bool get _remoteEnabled => BackendApiClient.remoteEnabled;
+
+  /// Maps the collector app's local category ids to backend material ids.
+  /// Unknown ids are omitted so the lot is still accepted and valued later.
+  static const Map<String, String> _materialIdByCategoryId = {
+    'pcb_motherboard': 'pcb',
+    'pcb': 'pcb',
+    'copper_wire': 'cable',
+    'cable': 'cable',
+    'battery': 'battery',
+    'display_monitor': 'lcd_panel',
+    'lcd_panel': 'lcd_panel',
+    'crt': 'crt',
+    'heavy_appliances': 'motor',
+    'motor': 'motor',
+    'mixed_ewaste': 'mixed_plastics',
+  };
+
+  static String _conditionForBackend(String condition) {
+    switch (condition.toLowerCase()) {
+      case 'scrap':
+        return 'Scrap';
+      case 'partial':
+        return 'Partial';
+      case 'good':
+      default:
+        return 'Good';
+    }
+  }
+
+  Map<String, dynamic> _lotToBackend(EWasteLot lot) {
+    final materialId = _materialIdByCategoryId[lot.categoryId];
+    return {
+      // The local UUID is the server-side idempotency key.
+      'clientReference': lot.id,
+      if (materialId != null) 'materialId': materialId,
+      if (lot.categoryName.isNotEmpty) 'categoryName': lot.categoryName,
+      'condition': _conditionForBackend(lot.condition),
+      'weightKg': lot.weightKg,
+      if (lot.notes != null && lot.notes!.isNotEmpty) 'notes': lot.notes,
+      if (lot.imagePath != null && lot.imagePath!.isNotEmpty)
+        'imagePath': lot.imagePath,
+      'syncStatus': AppConstants.syncSynced,
+    };
+  }
 
   @override
-  Future<ApiResponse<EWasteLot>> uploadLot(EWasteLot lot) => _mock.uploadLot(lot);
+  Future<ApiResponse<EWasteLot>> uploadLot(EWasteLot lot) async {
+    if (!_remoteEnabled) return _mock.uploadLot(lot);
+
+    final result = await _client.post('/lots', body: _lotToBackend(lot));
+
+    if (result.statusCode == 201 || result.statusCode == 200) {
+      return ApiResponse.success(lot, statusCode: result.statusCode);
+    }
+
+    return ApiResponse.failure(
+      result.message ?? 'Failed to upload lot',
+      statusCode: result.statusCode,
+    );
+  }
 
   @override
-  Future<ApiResponse<bool>> syncLotById(String id, Map<String, dynamic> lotData) =>
-      _mock.syncLotById(id, lotData);
+  Future<ApiResponse<bool>> syncLotById(
+    String id,
+    Map<String, dynamic> lotData,
+  ) async {
+    if (!_remoteEnabled) return _mock.syncLotById(id, lotData);
+
+    final result = await _client.post('/lots/sync', body: {
+      'items': [
+        {'clientReference': id, ...lotData},
+      ],
+    });
+
+    if (result.success) {
+      return ApiResponse.success(true, statusCode: result.statusCode);
+    }
+
+    return ApiResponse.failure(
+      result.message ?? 'Failed to sync lot',
+      statusCode: result.statusCode,
+    );
+  }
 
   @override
-  Future<ApiResponse<List<Price>>> fetchMarketPrices() => _mock.fetchMarketPrices();
+  Future<ApiResponse<List<Price>>> fetchMarketPrices() async {
+    if (!_remoteEnabled) return _mock.fetchMarketPrices();
+
+    // `/prices` is the collector alias of `/rates` on the current backend.
+    var result = await _client.get('/prices');
+    // Older deployments only expose `/rates`; fall back so the price board
+    // still loads against them.
+    if (!result.success && result.statusCode == 404) {
+      result = await _client.get('/rates');
+    }
+
+    if (!result.success) {
+      return ApiResponse.failure(
+        result.message ?? 'Failed to fetch prices',
+        statusCode: result.statusCode,
+      );
+    }
+
+    final rawRates = _extractRates(result.body);
+    if (rawRates == null) {
+      return ApiResponse.failure(
+        'Unexpected price response',
+        statusCode: result.statusCode,
+      );
+    }
+
+    final prices = rawRates
+        .whereType<Map>()
+        .map((rate) => _rateToPrice(rate.cast<String, dynamic>()))
+        .toList();
+
+    return ApiResponse.success(prices, statusCode: result.statusCode);
+  }
+
+  /// Accepts the new `{ success, rates[] }` envelope or a legacy bare array.
+  List? _extractRates(dynamic payload) {
+    if (payload is List) return payload;
+    if (payload is Map) {
+      final direct = payload['rates'];
+      if (direct is List) return direct;
+      final nested = payload['data'];
+      if (nested is Map && nested['rates'] is List) {
+        return nested['rates'] as List;
+      }
+    }
+    return null;
+  }
+
+  Price _rateToPrice(Map<String, dynamic> rate) {
+    // New contract exposes `materialId`; legacy `/rates` uses `id`.
+    final categoryKey =
+        (rate['materialId'] ?? rate['id'] ?? rate['material'] ?? '') as String;
+    final displayName =
+        (rate['displayName'] ?? rate['material'] ?? categoryKey) as String;
+    final ratePerKg = ((rate['ratePerKg'] ?? 0) as num).toDouble();
+    final updatedAt =
+        DateTime.tryParse((rate['updatedAt'] ?? '') as String) ?? DateTime.now();
+
+    return Price(
+      id: (rate['id'] ?? categoryKey) as String,
+      material: displayName,
+      minPrice: ratePerKg,
+      maxPrice: ratePerKg,
+      unit: (rate['unit'] as String?) ?? 'kg',
+      location: (rate['region'] as String?) ?? 'IN-MH',
+      source: (rate['source'] as String?) ?? 'Formal Recycler Rate',
+      updatedAt: updatedAt,
+      categoryId: categoryKey,
+      categoryNameEn: displayName,
+      categoryNameHi: displayName,
+      categoryNameMr: displayName,
+      iconAsset: 'recycling',
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Not yet exposed by the backend — keep the local mock.
+  // ---------------------------------------------------------------------------
 
   @override
   Future<ApiResponse<List<Transaction>>> fetchMyTransactions() =>

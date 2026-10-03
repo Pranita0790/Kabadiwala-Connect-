@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/user_profile.dart';
+import 'backend_api_client.dart';
 import 'database_service.dart';
 
 class AuthVerificationResult {
@@ -22,15 +23,21 @@ class AuthVerificationResult {
 /// Handles password login, OTP simulation for sign up, and user management with SQLite.
 class AuthService {
   static AuthService? _instance;
+  static const String _kBackendUserId = 'auth_backend_user_id';
+
   final DatabaseService _dbService;
+  final BackendApiClient _backend;
 
   // In-memory OTP storage for current sign up session
   String? _lastGeneratedOtp;
   String? _lastPhoneSent;
   DateTime? _lastOtpSentTime;
 
-  AuthService({DatabaseService? dbService})
-      : _dbService = dbService ?? DatabaseService.instance;
+  AuthService({DatabaseService? dbService, BackendApiClient? backendClient})
+      : _dbService = dbService ?? DatabaseService.instance,
+        _backend = backendClient ?? BackendApiClient.instance;
+
+  bool get _remoteEnabled => BackendApiClient.remoteEnabled;
 
   static AuthService get instance {
     _instance ??= AuthService();
@@ -98,12 +105,56 @@ class AuthService {
     return user != null && user.isProfileComplete;
   }
 
-  /// Logs in an existing user with mobile number and password (NO OTP)
+  /// Logs in an existing user with mobile number and password (NO OTP).
+  ///
+  /// Online, the credentials are verified by the backend and the issued
+  /// session tokens are stored locally. If the backend is unreachable, the
+  /// locally cached password hash is used so an existing collector can still
+  /// sign in offline (offline-first).
   Future<AuthVerificationResult> loginWithPassword({
     required String rawPhone,
     required String password,
   }) async {
     final cleanPhone = normalizePhoneNumber(rawPhone);
+
+    if (_remoteEnabled) {
+      final remote = await _backend.post(
+        '/auth/login',
+        body: {'identifier': cleanPhone, 'password': password},
+      );
+
+      if (remote.success) {
+        await _persistRemoteSession(remote);
+        final user = await _upsertLocalUserFromRemote(
+          remote.data is Map ? (remote.data['user'] as Map?) : null,
+          rawPhone: cleanPhone,
+          password: password,
+        );
+        return AuthVerificationResult(
+          success: true,
+          isNewUser: false,
+          user: user,
+        );
+      }
+
+      // The backend answered and rejected the credentials. Do not let a stale
+      // local hash authenticate a user the server refused.
+      if (!remote.isNetworkError) {
+        return const AuthVerificationResult(
+          success: false,
+          errorMessage: 'invalidCredentialsError',
+        );
+      }
+      // Network failure -> fall through to the offline credential check.
+    }
+
+    return _offlinePasswordLogin(cleanPhone, password);
+  }
+
+  Future<AuthVerificationResult> _offlinePasswordLogin(
+    String cleanPhone,
+    String password,
+  ) async {
     final user = await _dbService.getUserByPhone(cleanPhone);
 
     if (user == null) {
@@ -132,6 +183,62 @@ class AuthService {
       isNewUser: false,
       user: user,
     );
+  }
+
+  /// Stores the backend session tokens and the backend user id locally.
+  Future<void> _persistRemoteSession(ApiResult result) async {
+    final data = result.data;
+    if (data is! Map) return;
+
+    final access = data['accessToken'] as String?;
+    final refresh = data['refreshToken'] as String?;
+    if (access != null && refresh != null) {
+      await _backend.saveTokens(accessToken: access, refreshToken: refresh);
+    }
+
+    final user = data['user'];
+    if (user is Map && user['id'] is String) {
+      await _dbService.saveSetting(_kBackendUserId, user['id'] as String);
+    }
+  }
+
+  /// Creates or refreshes the local SQLite profile from a backend user DTO.
+  Future<UserProfile> _upsertLocalUserFromRemote(
+    Map? remoteUser, {
+    required String rawPhone,
+    String? password,
+    String? city,
+    String role = 'collector',
+    String? photoPath,
+  }) async {
+    final cleanPhone = normalizePhoneNumber(rawPhone);
+    final existing = await _dbService.getUserByPhone(cleanPhone);
+
+    final backendId = remoteUser?['id'] as String?;
+    if (backendId != null) {
+      await _dbService.saveSetting(_kBackendUserId, backendId);
+    }
+
+    final backendName = (remoteUser?['fullName'] as String?)?.trim();
+
+    final user = UserProfile.create(
+      id: existing?.id,
+      name: (backendName != null && backendName.isNotEmpty)
+          ? backendName
+          : (existing?.name ?? ''),
+      phoneNumber: (remoteUser?['phone'] as String?) ?? cleanPhone,
+      passwordHash: (password != null && password.isNotEmpty)
+          ? hashPassword(password)
+          : existing?.passwordHash,
+      city: city ?? existing?.city ?? '',
+      role: ((remoteUser?['role'] as String?) ?? role).toLowerCase(),
+      photoPath: photoPath ?? existing?.photoPath,
+      isProfileComplete: true,
+    );
+
+    await _dbService.saveUser(user);
+    await _dbService.setCurrentUserId(user.id);
+    return user;
   }
 
   /// Sends a simulated/mock OTP during SIGN UP verification only
@@ -204,6 +311,7 @@ class AuthService {
     final cleanPhone = normalizePhoneNumber(inputPhone);
     final existing = await _dbService.getUserByPhone(cleanPhone);
 
+    // Offline-first: persist the account locally before touching the network.
     final user = UserProfile.create(
       id: existing?.id,
       name: name.trim(),
@@ -217,6 +325,44 @@ class AuthService {
 
     await _dbService.saveUser(user);
     await _dbService.setCurrentUserId(user.id);
+
+    if (_remoteEnabled) {
+      // Register the collector (201) then sign in to obtain a session. If the
+      // account already exists on the server (e.g. created on another device)
+      // we still try to sign in with the supplied password.
+      final register = await _backend.post('/auth/register', body: {
+        'fullName': name.trim(),
+        'phone': cleanPhone,
+        'password': password,
+        'role': 'COLLECTOR',
+      });
+
+      if (register.success || register.code == 'ACCOUNT_EXISTS') {
+        final login = await _backend.post('/auth/login', body: {
+          'identifier': cleanPhone,
+          'password': password,
+        });
+
+        if (login.success) {
+          await _persistRemoteSession(login);
+          return _upsertLocalUserFromRemote(
+            login.data is Map ? (login.data['user'] as Map?) : null,
+            rawPhone: cleanPhone,
+            password: password,
+            city: city.trim(),
+            role: role,
+            photoPath: photoPath ?? existing?.photoPath,
+          );
+        }
+      } else if (register.isNetworkError) {
+        debugPrint('Backend registration unavailable; kept local account.');
+      } else {
+        debugPrint(
+          'Backend registration rejected (${register.code}): ${register.message}',
+        );
+      }
+    }
+
     return user;
   }
 
@@ -261,8 +407,21 @@ class AuthService {
     return await _dbService.getCurrentUser();
   }
 
-  /// Logs out the user and clears session
+  /// Logs out the user and clears the local and remote session.
   Future<void> logout() async {
+    if (_remoteEnabled && _backend.refreshToken != null) {
+      try {
+        await _backend.post(
+          '/auth/logout',
+          body: {'refreshToken': _backend.refreshToken},
+        );
+      } catch (_) {
+        // Best effort: clearing the local session must always succeed.
+      }
+    }
+
+    await _backend.clearTokens();
+    await _dbService.deleteSetting(_kBackendUserId);
     await _dbService.clearAuthSession();
     _lastGeneratedOtp = null;
     _lastPhoneSent = null;

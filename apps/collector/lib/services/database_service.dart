@@ -644,6 +644,25 @@ class DatabaseService {
     }
   }
 
+  Future<void> deleteSetting(String key) async {
+    try {
+      final db = await database;
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ${AppConstants.tableSettings} (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      ''');
+      await db.delete(
+        AppConstants.tableSettings,
+        where: 'key = ?',
+        whereArgs: [key],
+      );
+    } catch (e) {
+      throw DatabaseException('Failed to delete setting: $key', e);
+    }
+  }
+
   Future<void> saveLanguagePreference(String languageCode) async {
     await saveSetting('preferred_language', languageCode);
   }

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/formatters.dart';
 import '../../repositories/lot_repository.dart';
@@ -31,7 +32,7 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
   // Configure AI service implementation
   // Flutter calls the Node.js backend; the backend forwards to FastAPI internally.
   static const bool _useMockAi = bool.fromEnvironment('USE_MOCK_AI', defaultValue: false);
-  static const String _backendUrl = String.fromEnvironment('BACKEND_URL', defaultValue: 'http://10.0.2.2:5000');
+  static const String _backendUrl = String.fromEnvironment('BACKEND_URL', defaultValue: AppConstants.apiHost);
 
   @override
   void initState() {
