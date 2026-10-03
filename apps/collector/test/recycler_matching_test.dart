@@ -2,15 +2,25 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kabadiwala_connect/core/constants/app_constants.dart';
 import 'package:kabadiwala_connect/core/localization/app_localizations.dart';
 import 'package:kabadiwala_connect/models/e_waste_lot.dart';
 import 'package:kabadiwala_connect/models/recycler.dart';
+import 'package:kabadiwala_connect/repositories/lot_repository.dart';
 import 'package:kabadiwala_connect/repositories/recycler_repository.dart';
 import 'package:kabadiwala_connect/screens/recycler/recycler_matching_screen.dart';
 import 'package:kabadiwala_connect/services/api_service.dart';
 import 'package:kabadiwala_connect/services/connectivity_service.dart';
 import 'package:kabadiwala_connect/services/database_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+class _FakeLotRepository extends LotRepository {
+  _FakeLotRepository(this._lots);
+  final List<EWasteLot> _lots;
+
+  @override
+  Future<List<EWasteLot>> getLots() async => _lots;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -112,6 +122,7 @@ void main() {
     EWasteLot? lot,
     String? selectedCategory,
     List<Recycler>? initialRecyclers,
+    LotRepository? lotRepository,
     Locale locale = const Locale('en'),
   }) {
     return MaterialApp(
@@ -132,6 +143,7 @@ void main() {
         selectedCategory: selectedCategory,
         initialRecyclers: initialRecyclers,
         recyclerRepository: recyclerRepository,
+        lotRepository: lotRepository ?? _FakeLotRepository(const []),
       ),
     );
   }
@@ -272,6 +284,48 @@ void main() {
       expect(find.text('रिसायकलर जुळणी'), findsOneWidget);
       expect(find.textContaining('जुळणी सापडली'), findsOneWidget);
       expect(find.text('जवळचे रिसायकलर'), findsOneWidget);
+    });
+
+    testWidgets('7. Select without a saved lot shows save-lot guidance', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(buildTestWidget(initialRecyclers: sampleRecyclers));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Select').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save a lot first, then create a handover QR.'), findsOneWidget);
+    });
+
+    testWidgets('8. Latest saved lot is bound and shown in the matching header', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final savedLot = EWasteLot(
+        id: 'lot_select_1',
+        categoryId: 'mixed_ewaste',
+        categoryName: 'E-Waste',
+        weightKg: 5.0,
+        condition: 'average',
+        estimatedMinPrice: 1000,
+        estimatedMaxPrice: 1250,
+        status: 'CREATED',
+        syncStatus: AppConstants.syncPending,
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(buildTestWidget(
+        initialRecyclers: sampleRecyclers,
+        lotRepository: _FakeLotRepository([savedLot]),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('5.0 kg'), findsOneWidget);
+      expect(find.text('Select'), findsWidgets);
     });
   });
 }

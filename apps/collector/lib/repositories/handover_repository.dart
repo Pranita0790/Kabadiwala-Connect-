@@ -111,8 +111,12 @@ class HandoverRepository {
     return handover;
   }
 
-  /// Confirms a handover physically scanned/agreed by the recycler
-  Future<Handover> confirmHandover(String handoverId, {double? finalAmount}) async {
+  /// Confirms a handover physically agreed by the recycler (PIN / facility verify).
+  Future<Handover> confirmHandover(
+    String handoverId, {
+    double? finalAmount,
+    String paymentStatus = 'PAID',
+  }) async {
     final existing = await _dbService.getHandoverById(handoverId);
     if (existing == null) {
       throw Exception('Handover $handoverId not found in local SQLite database');
@@ -120,6 +124,8 @@ class HandoverRepository {
 
     final confirmedAt = DateTime.now();
     final effectiveFinalAmount = finalAmount ?? existing.agreedAmount;
+    final effectivePayment =
+        paymentStatus == 'PENDING' ? 'PENDING' : 'PAID';
 
     final updated = existing.copyWith(
       status: AppConstants.handoverConfirmed,
@@ -140,7 +146,7 @@ class HandoverRepository {
       recyclerId: updated.recyclerName,
       quotedPrice: updated.agreedAmount,
       finalPrice: effectiveFinalAmount,
-      paymentStatus: 'PAID',
+      paymentStatus: effectivePayment,
       handoverStatus: 'COMPLETED',
       createdAt: confirmedAt,
       categoryName: updated.materialCategory,
@@ -190,8 +196,26 @@ class HandoverRepository {
             AppConstants.syncSynced,
           );
         }
-        await _apiService.confirmHandoverOnBackend(handoverId);
-      } catch (_) {}
+        final confirm = await _apiService.confirmHandoverOnBackend(handoverId);
+        if (!confirm.success) {
+          await _dbService.updateHandoverSyncStatus(
+            updated.id,
+            AppConstants.syncFailed,
+          );
+          return updated.copyWith(syncStatus: AppConstants.syncFailed);
+        }
+        await _dbService.updateHandoverSyncStatus(
+          updated.id,
+          AppConstants.syncSynced,
+        );
+        return updated.copyWith(syncStatus: AppConstants.syncSynced);
+      } catch (_) {
+        await _dbService.updateHandoverSyncStatus(
+          updated.id,
+          AppConstants.syncFailed,
+        );
+        return updated.copyWith(syncStatus: AppConstants.syncFailed);
+      }
     }
 
     return updated;

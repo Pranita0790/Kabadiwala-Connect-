@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/localization/locale_controller.dart';
 import '../../services/auth_service.dart';
@@ -53,8 +54,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _fillDemoCredentials() {
     setState(() {
-      _phoneController.text = '9876543210';
-      _passwordController.text = 'pass123';
+      _phoneController.text = DemoAuth.phoneNumber;
+      _passwordController.text = DemoAuth.password;
       _errorMessage = null;
     });
   }

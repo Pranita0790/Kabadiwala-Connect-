@@ -2,8 +2,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/utils/formatters.dart';
 import '../../models/e_waste_lot.dart';
 import '../../models/recycler.dart';
+import '../../repositories/lot_repository.dart';
 import '../../repositories/recycler_repository.dart';
 import '../handover/handover_qr_screen.dart';
 
@@ -12,6 +14,7 @@ class RecyclerMatchingScreen extends StatefulWidget {
   final String? selectedCategory;
   final List<Recycler>? initialRecyclers;
   final RecyclerRepository? recyclerRepository;
+  final LotRepository? lotRepository;
 
   const RecyclerMatchingScreen({
     super.key,
@@ -19,6 +22,7 @@ class RecyclerMatchingScreen extends StatefulWidget {
     this.selectedCategory,
     this.initialRecyclers,
     this.recyclerRepository,
+    this.lotRepository,
   });
 
   @override
@@ -27,17 +31,21 @@ class RecyclerMatchingScreen extends StatefulWidget {
 
 class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
   late final RecyclerRepository _recyclerRepo;
+  late final LotRepository _lotRepo;
 
   List<Recycler> _recyclers = [];
   bool _isLoading = true;
   bool _isMapView = false;
   String? _errorMessage;
   Recycler? _selectedRecycler;
+  EWasteLot? _boundLot;
 
   @override
   void initState() {
     super.initState();
     _recyclerRepo = widget.recyclerRepository ?? RecyclerRepository();
+    _lotRepo = widget.lotRepository ?? LotRepository();
+    _boundLot = widget.lot;
     if (widget.initialRecyclers != null) {
       _recyclers = List.from(widget.initialRecyclers!);
       _isLoading = false;
@@ -47,6 +55,26 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
     } else {
       _loadRecyclers();
     }
+    if (_boundLot == null && widget.lotRepository != null) {
+      _bindLatestSavedLot();
+    }
+  }
+
+  Future<void> _bindLatestSavedLot() async {
+    try {
+      final lots = await _lotRepo.getLots();
+      if (!mounted || lots.isEmpty || _boundLot != null) return;
+      setState(() {
+        _boundLot = lots.first;
+      });
+      if (widget.lot == null &&
+          widget.selectedCategory == null &&
+          widget.initialRecyclers == null) {
+        await _loadRecyclers();
+      }
+    } catch (_) {
+      // Matching still works for browsing; Select needs a saved lot.
+    }
   }
 
   Future<void> _loadRecyclers({bool forceRefresh = false}) async {
@@ -55,7 +83,8 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
       _errorMessage = null;
     });
 
-    final category = widget.lot?.categoryId ?? widget.lot?.category ?? widget.selectedCategory;
+    final lot = _boundLot ?? widget.lot;
+    final category = lot?.categoryId ?? lot?.category ?? widget.selectedCategory;
 
     try {
       final result = await _recyclerRepo.fetchMatchingRecyclers(
@@ -90,12 +119,19 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
   }
 
   void _navigateToHandover(Recycler recycler) {
+    final lot = _boundLot ?? widget.lot;
+    if (lot == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).translate('handoverNeedsLot'))),
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => HandoverQrScreen(
           recycler: recycler,
-          lot: widget.lot,
+          lot: lot,
         ),
       ),
     );
@@ -298,9 +334,13 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final categoryName = widget.lot?.categoryName.isNotEmpty == true
-        ? widget.lot!.categoryName
+    final activeLot = _boundLot ?? widget.lot;
+    final categoryName = activeLot?.categoryName.isNotEmpty == true
+        ? activeLot!.categoryName
         : (widget.selectedCategory ?? 'E-Waste');
+    final matchHeader = activeLot != null
+        ? '${loc.translate('material')}: $categoryName • ${Formatters.weight(activeLot.weightKg)} • ${_recyclers.length} ${loc.translate('matchesFound')}'
+        : '${loc.translate('material')}: $categoryName • ${_recyclers.length} ${loc.translate('matchesFound')}';
 
     return Scaffold(
       appBar: AppBar(
@@ -332,7 +372,9 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '${loc.translate('material')}: $categoryName • ${_recyclers.length} ${loc.translate('matchesFound')}',
+                    matchHeader,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
@@ -1119,24 +1161,27 @@ class _ViewToggleButton extends StatelessWidget {
           color: isSelected ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : Colors.grey.shade700,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
                 color: isSelected ? Colors.white : Colors.grey.shade700,
               ),
-            ),
-          ],
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -162,10 +162,30 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
   }
 
+  void _openRecyclerMatching() {
+    Navigator.pushNamed(
+      context,
+      '/recyclers',
+      arguments: _lots.isNotEmpty ? _lots.first : null,
+    );
+  }
+
   Future<void> _triggerManualSync() async {
-    await _syncService.syncPendingRecords();
+    final result = await _syncService.syncPendingRecords();
     await _loadLots();
     await _loadEarnings();
+    if (!mounted) return;
+    if (result.failed > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _syncService.lastError ??
+                'Sync failed. Sign in and keep the backend running on port 5000.',
+          ),
+          backgroundColor: AppColors.syncFailed,
+        ),
+      );
+    }
   }
 
   int get _pendingCount => _lots.where((l) =>
@@ -708,7 +728,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: Text(loc.translate('findRecycler')),
                     onTap: () {
                       Navigator.pop(context);
-                      Navigator.pushNamed(context, '/recyclers');
+                      _openRecyclerMatching();
                     },
                   ),
                   ListTile(
@@ -734,9 +754,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () {
                       Navigator.pop(context);
                       if (_lots.isNotEmpty) {
-                        Navigator.pushNamed(context, '/recycler-handover', arguments: _lots.first);
+                        Navigator.pushNamed(
+                          context,
+                          '/recyclers',
+                          arguments: _lots.first,
+                        );
                       } else {
-                        Navigator.pushNamed(context, '/recyclers');
+                        _openRecyclerMatching();
                       }
                     },
                   ),
@@ -916,7 +940,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       label: loc.translate('findRecycler'),
                       icon: Icons.location_searching_rounded,
                       isSecondary: true,
-                      onPressed: () => Navigator.pushNamed(context, '/recyclers'),
+                      onPressed: _openRecyclerMatching,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1067,7 +1091,7 @@ class _HomeScreenState extends State<HomeScreen> {
               break;
             case 2:
               // Recyclers
-              Navigator.pushNamed(context, '/recyclers');
+              _openRecyclerMatching();
               break;
             case 3:
               // Earnings

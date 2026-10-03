@@ -337,13 +337,20 @@ service; the collector never calls the AI service directly (AGENTS.md section 2)
 | `weight_kg` | number | no       | Optional known weight.         |
 | `lot_id`    | string | no       | Attach the result to a lot.    |
 
-The response is the **raw AI-service body** (snake_case), preserved so the
-deployed collector keeps reading `material` and `confidence`:
+The response is the **raw AI-service body** (snake_case). Existing clients
+keep reading `material` and `confidence`. Additive fields map the inference
+onto collector lot categories (Motherboard / PCB, Copper Wire, Batteries,
+Monitors & Displays, Heavy Electricals, Plastic, Paper, Books, Mixed E-Waste)
+and auto-fill the Create Lot form:
 
 ```json
 {
   "material": "pcb",
   "confidence": 0.95,
+  "category": "Motherboard / PCB",
+  "category_id": "pcb_motherboard",
+  "electronic_device": "Printed circuit board",
+  "short_description": "Circuit board with chips and copper traces; best match is Motherboard / PCB.",
   "critical_mineral": true,
   "critical_mineral_reason": null,
   "model_version": "sih-5class-v1",

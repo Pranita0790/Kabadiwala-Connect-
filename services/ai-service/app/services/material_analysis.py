@@ -3,6 +3,7 @@ from PIL import Image
 from app.models.material_analysis import MaterialAnalysisResponse
 from app.services.critical_mineral import check_critical_mineral
 from app.services.estimation import estimate_value, estimate_weight
+from app.services.lot_category import lot_fields_for_material
 from app.services.material_capabilities import SUPPORTED_MATERIALS
 from app.services.material_classifier import (
     MODEL_VERSION,
@@ -30,6 +31,8 @@ def analyze_material(
     )
     weight_method = "user_provided" if weight_kg is not None else "typical_lot"
 
+    lot = lot_fields_for_material(classification.material)
+
     return MaterialAnalysisResponse(
         material=classification.material,
         confidence=classification.confidence,
@@ -44,4 +47,8 @@ def analyze_material(
             resolved_weight,
         ),
         suggested_condition=suggested_condition(classification.material),
+        category=lot["category"],
+        category_id=lot["category_id"],
+        electronic_device=lot["electronic_device"],
+        short_description=lot["short_description"],
     )

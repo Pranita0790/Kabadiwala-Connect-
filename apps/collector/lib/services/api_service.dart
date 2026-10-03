@@ -10,6 +10,8 @@ import '../models/price_alert.dart';
 import '../models/recycler.dart';
 import '../models/transaction.dart';
 import 'session_store.dart';
+import 'backend_url.dart';
+import 'lot_valuation.dart' as lot_valuation;
 
 /// Generic response wrapper for backend operations.
 class ApiResponse<T> {
@@ -478,7 +480,7 @@ class MockApiService implements ApiService {
 class RemoteApiService implements ApiService {
   static RemoteApiService? _instance;
 
-  final String baseUrl;
+  final String? _baseUrlOverride;
   final http.Client _client;
   final MockApiService _mock = MockApiService();
   final SessionStore _sessionStore;
@@ -490,10 +492,12 @@ class RemoteApiService implements ApiService {
     http.Client? client,
     String? authToken,
     SessionStore? sessionStore,
-  })  : baseUrl = baseUrl ?? AppConstants.apiBaseUrl,
+  })  : _baseUrlOverride = baseUrl,
         _client = client ?? http.Client(),
         _sessionStore = sessionStore ?? SessionStore(),
         _authToken = authToken;
+
+  String get baseUrl => _baseUrlOverride ?? BackendUrl.api;
 
   static RemoteApiService get instance {
     _instance ??= RemoteApiService();
@@ -532,6 +536,7 @@ class RemoteApiService implements ApiService {
 
   Future<bool> _refreshAccessTokenOnce() async {
     try {
+      await BackendUrl.resolve(client: _client);
       final refresh = await _sessionStore.getRefreshToken();
       if (refresh == null || refresh.isEmpty) {
         return false;
@@ -609,18 +614,25 @@ class RemoteApiService implements ApiService {
       'lcd_panel': 'lcd_panel',
       'lcd': 'lcd_panel',
       'display': 'lcd_panel',
+      'display_monitor': 'lcd_panel',
       'monitors_displays': 'lcd_panel',
       'motor': 'motor',
+      'heavy_appliances': 'motor',
       'mixed': 'mixed_plastics',
       'mixed_plastics': 'mixed_plastics',
+      'mixed_ewaste': 'mixed_plastics',
+      'plastic': 'mixed_plastics',
+      'paper': 'mixed_plastics',
+      'book': 'mixed_plastics',
     };
-    return aliases[key] ?? key;
+    return aliases[key] ?? 'mixed_plastics';
   }
 
   static String mapCondition(String condition) {
     switch (condition.trim().toLowerCase()) {
       case 'good':
         return 'Good';
+      case 'average':
       case 'partial':
       case 'partially_damaged':
         return 'Partial';
@@ -630,16 +642,22 @@ class RemoteApiService implements ApiService {
   }
 
   Map<String, dynamic> lotToApiBody(EWasteLot lot) {
-    final materialId = mapMaterialId(lot.categoryId);
     final body = <String, dynamic>{
-      'materialId': materialId,
+      'materialId': mapMaterialId(lot.categoryId),
       'categoryName': lot.categoryName,
       'condition': mapCondition(lot.condition),
       'weightKg': lot.weightKg,
       'syncStatus': 'PENDING_SYNC',
-      'notes': lot.notes,
-      'imagePath': lot.imagePath,
     };
+    final notes = lot.notes?.trim();
+    if (notes != null && notes.isNotEmpty) {
+      body['notes'] = notes.length > 2000 ? notes.substring(0, 2000) : notes;
+    }
+    final imagePath = lot.imagePath?.trim();
+    if (imagePath != null && imagePath.isNotEmpty) {
+      body['imagePath'] =
+          imagePath.length > 500 ? imagePath.substring(0, 500) : imagePath;
+    }
     // Backend expects a UUID clientReference for idempotent offline sync.
     final uuidPattern = RegExp(
       r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
@@ -648,6 +666,38 @@ class RemoteApiService implements ApiService {
       body['clientReference'] = lot.id;
     }
     return body;
+  }
+
+  Future<void> _ensureAuthToken() async {
+    if (_authToken != null && _authToken!.isNotEmpty) return;
+    final stored = await _sessionStore.getAccessToken();
+    if (stored != null && stored.isNotEmpty) {
+      setAuthToken(stored);
+    }
+  }
+
+  String _apiFailureMessage(http.Response response, String fallback) {
+    if (response.statusCode == 401) {
+      return 'Sign in required to sync. Use password login, not a local-only session.';
+    }
+    try {
+      final body = json.decode(response.body);
+      if (body is! Map) return '$fallback (${response.statusCode})';
+      final details = body['details'];
+      if (details is List && details.isNotEmpty) {
+        final first = details.first;
+        if (first is Map) {
+          final field = first['field'] ?? '';
+          final message = first['message'] ?? fallback;
+          return field.toString().isEmpty ? '$message' : '$field: $message';
+        }
+      }
+      return (body['message'] as String?) ??
+          (body['code'] as String?) ??
+          '$fallback (${response.statusCode})';
+    } catch (_) {
+      return '$fallback (${response.statusCode})';
+    }
   }
 
   /// Password login against `POST /api/auth/login`.
@@ -746,13 +796,16 @@ class RemoteApiService implements ApiService {
   @override
   Future<ApiResponse<EWasteLot>> uploadLot(EWasteLot lot) async {
     try {
+      await BackendUrl.resolve(client: _client, force: true);
+      await _ensureAuthToken();
       final uri = Uri.parse('$baseUrl/lots');
+      final payload = json.encode(lotToApiBody(lot));
       final response = await _withAuthRetry(
         () => _client
             .post(
               uri,
               headers: _headers,
-              body: json.encode(lotToApiBody(lot)),
+              body: payload,
             )
             .timeout(const Duration(seconds: 10)),
       );
@@ -764,15 +817,19 @@ class RemoteApiService implements ApiService {
           return ApiResponse.success(lot, statusCode: response.statusCode);
         }
       }
-      final body = json.decode(response.body);
+      developer.log(
+        'Lot upload failed: ${response.statusCode} ${response.body}',
+        name: 'api.lots',
+      );
       return ApiResponse.failure(
-        (body['code'] as String?) ??
-            (body['message'] as String?) ??
-            'Lot upload failed',
+        _apiFailureMessage(response, 'Lot upload failed'),
         statusCode: response.statusCode,
       );
     } catch (e) {
-      return ApiResponse.failure('Lot upload failed: $e');
+      developer.log('Lot upload error', name: 'api.lots', error: e);
+      return ApiResponse.failure(
+        'Cannot reach backend at $baseUrl. Start Node on port 5000.',
+      );
     }
   }
 
@@ -812,36 +869,58 @@ class RemoteApiService implements ApiService {
   @override
   Future<ApiResponse<List<Price>>> fetchMarketPrices() async {
     try {
-      final uri = Uri.parse('$baseUrl/prices');
-      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+      await BackendUrl.resolve(client: _client, force: true);
+      http.Response? response;
+      Object? lastError;
+      final paths = <String>['/rates', '/prices'];
+      final roots = <String>{
+        BackendUrl.root,
+        ...BackendUrl.rootCandidates,
+      };
 
-      if (response.statusCode == 200) {
-        final body = json.decode(response.body);
-        final rawList = body['data']?['rates'] ?? body['rates'] ?? body['data'];
-        if (rawList is List && rawList.isNotEmpty) {
-          final prices = rawList.map((item) {
-            final rate = (item['ratePerKg'] as num?)?.toDouble() ?? 0.0;
-            return Price(
-              id: item['id']?.toString() ?? 'item_${item['materialId']}',
-              material: item['materialName'] ?? item['categoryName'] ?? 'E-Waste',
-              categoryNameEn: item['materialName'] ?? item['categoryName'] ?? 'E-Waste',
-              categoryNameHi: item['categoryNameHi'] ?? item['materialName'] ?? 'ई-कचरा',
-              categoryNameMr: item['categoryNameMr'] ?? item['materialName'] ?? 'ई-कचरा',
-              minPrice: rate > 0 ? (rate * 0.9).roundToDouble() : 50.0,
-              maxPrice: rate > 0 ? (rate * 1.1).roundToDouble() : 100.0,
-              unit: item['unit'] ?? 'kg',
-              location: item['region'] ?? 'Nagpur',
-              source: item['source'] ?? 'Formal Benchmark',
-              updatedAt: item['updatedAt'] != null ? DateTime.tryParse(item['updatedAt']) ?? DateTime.now() : DateTime.now(),
-              iconAsset: 'recycling',
-            );
-          }).toList();
-          return ApiResponse.success(prices, statusCode: 200);
+      for (final root in roots) {
+        for (final path in paths) {
+          try {
+            final uri = Uri.parse('$root/api$path');
+            final candidate = await _client
+                .get(uri, headers: _headers)
+                .timeout(const Duration(seconds: 8));
+            if (candidate.statusCode == 200) {
+              BackendUrl.rememberRoot(root);
+              response = candidate;
+              break;
+            }
+            lastError = candidate.statusCode;
+          } catch (e) {
+            lastError = e;
+          }
         }
+        if (response != null) break;
       }
-      return await _mock.fetchMarketPrices();
-    } catch (_) {
-      return await _mock.fetchMarketPrices();
+
+      if (response == null || response.statusCode != 200) {
+        return ApiResponse.failure(
+          'Price list unavailable',
+          statusCode: response?.statusCode ?? 503,
+        );
+      }
+
+      final body = json.decode(response.body);
+      final prices = lot_valuation.LotValuation.pricesFromRatesResponse(body);
+      if (prices.isEmpty) {
+        developer.log(
+          'Rates payload had no rows: ${response.body}',
+          name: 'api.prices',
+          error: lastError,
+        );
+        return ApiResponse.failure(
+          'Price list unavailable',
+          statusCode: 200,
+        );
+      }
+      return ApiResponse.success(prices, statusCode: 200);
+    } catch (e) {
+      return ApiResponse.failure('Failed to fetch prices: $e');
     }
   }
 
@@ -879,9 +958,11 @@ class RemoteApiService implements ApiService {
   @override
   Future<ApiResponse<List<Recycler>>> fetchMatchingRecyclers({String? categoryId}) async {
     try {
-      final query = (categoryId != null && categoryId.isNotEmpty && categoryId != 'all')
-          ? '?categoryId=$categoryId'
+      await BackendUrl.resolve(client: _client);
+      final mapped = (categoryId != null && categoryId.isNotEmpty && categoryId != 'all')
+          ? RemoteApiService.mapMaterialId(categoryId)
           : '';
+      final query = mapped.isNotEmpty ? '?categoryId=$mapped' : '';
       final uri = Uri.parse('$baseUrl/recyclers$query');
       final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
 
@@ -904,6 +985,8 @@ class RemoteApiService implements ApiService {
   @override
   Future<ApiResponse<Handover>> uploadHandover(Handover handover) async {
     try {
+      await BackendUrl.resolve(client: _client);
+      await _ensureAuthToken();
       final uri = Uri.parse('$baseUrl/handovers');
       final body = {
         'id': handover.id,

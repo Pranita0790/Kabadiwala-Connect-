@@ -30,6 +30,7 @@ class SyncService {
 
   SyncStatus _currentStatus = SyncStatus.idle;
   bool _isSyncInProgress = false;
+  String? lastError;
 
   final bool autoSyncOnOnline;
 
@@ -113,6 +114,8 @@ class SyncService {
   /// 5. On success: mark record SYNCED.
   /// 6. On failure: mark record FAILED and increment retry_count.
   /// 7. Guarantee idempotency / zero duplicate creation.
+  /// Processes pending lots first, then handovers. Lot/handover sync_status
+  /// is the queue; the unused `sync_queue` table is not drained.
   Future<SyncResult> syncPendingRecords() async {
     if (_isSyncInProgress) {
       return SyncResult(total: 0, successful: 0, failed: 0, isOffline: false);
@@ -125,6 +128,7 @@ class SyncService {
     }
 
     _isSyncInProgress = true;
+    lastError = null;
     _setStatus(SyncStatus.syncing);
 
     int successCount = 0;
@@ -158,10 +162,12 @@ class SyncService {
             await _dbService.markAsSynced(lot.id);
             successCount++;
           } else {
+            lastError = response.errorMessage;
             await _dbService.markAsSyncFailed(lot.id, error: response.errorMessage);
             failCount++;
           }
         } catch (e) {
+          lastError = e.toString();
           await _dbService.markAsSyncFailed(lot.id, error: e.toString());
           failCount++;
         }
@@ -198,6 +204,7 @@ class SyncService {
             }
             successCount++;
           } else {
+            lastError = response.errorMessage;
             await _dbService.updateHandoverSyncStatus(
               handover.id,
               AppConstants.syncFailed,
@@ -228,6 +235,7 @@ class SyncService {
         isOffline: false,
       );
     } catch (e) {
+      lastError = e.toString();
       _setStatus(SyncStatus.failed);
       return SyncResult(
         total: 0,

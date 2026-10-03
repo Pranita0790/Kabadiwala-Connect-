@@ -170,7 +170,13 @@ class AuthLandingScreen extends StatelessWidget {
               OutlinedButton.icon(
                 key: const Key('landing_demo_btn'),
                 onPressed: () async {
-                  await AuthController.instance.signInAsDemoUser();
+                  final ok = await AuthController.instance.signInAsDemoUser();
+                  if (!context.mounted) return;
+                  if (!ok) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(l10n.translate('demoLoginFailed'))),
+                    );
+                  }
                 },
                 icon: const Icon(Icons.flash_on_rounded, color: AppColors.secondary, size: 20),
                 label: const Text(

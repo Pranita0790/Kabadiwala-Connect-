@@ -104,9 +104,15 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify Header & Status
-      expect(find.text('Handover QR'), findsOneWidget);
+      expect(find.text('Handover PIN'), findsWidgets);
       expect(find.text('Waiting for Recycler Confirmation'), findsOneWidget);
       expect(find.text('Ready for Handover'), findsOneWidget);
+
+      // PIN digits derived from lot id
+      final expectedPin = Handover.deriveHandoverPin('lot_test_001');
+      expect(find.text(expectedPin), findsOneWidget);
+      expect(find.text('Cash'), findsOneWidget);
+      expect(find.text('UPI'), findsOneWidget);
 
       // Verify Handover details
       expect(find.text('EcoRecycle Maharashtra'), findsOneWidget);
@@ -198,7 +204,7 @@ void main() {
       expect(find.text('View in Earnings Ledger'), findsWidgets);
     });
 
-    testWidgets('4. Scanner action card and AppBar scanner icon are visible and trigger camera/scanner flow', (tester) async {
+    testWidgets('4. Payment method chips Cash and UPI are available on PIN screen', (tester) async {
       tester.view.physicalSize = const Size(1080, 2200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -220,46 +226,23 @@ void main() {
         syncStatus: AppConstants.syncPending,
       );
 
-      bool cameraRouteOpened = false;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('en'),
-          localizationsDelegates: const [
-            AppLocalizationsDelegate(),
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          routes: {
-            '/': (_) => HandoverQrScreen(
-                  recycler: sampleRecycler,
-                  initialHandover: testHandover,
-                  handoverRepository: handoverRepository,
-                ),
-            '/camera': (_) {
-              cameraRouteOpened = true;
-              return const Scaffold(body: Text('MOCK_CAMERA_SCREEN'));
-            },
-          },
-          initialRoute: '/',
-        ),
-      );
+      await tester.pumpWidget(buildTestWidget(initialHandover: testHandover));
       await tester.pumpAndSettle();
 
-      // Verify Scanner card exists
-      expect(find.text('Scan QR'), findsWidgets);
-      expect(find.byIcon(Icons.qr_code_scanner_rounded), findsWidgets);
+      expect(find.text('Cash'), findsOneWidget);
+      expect(find.text('UPI'), findsOneWidget);
+      expect(find.text('Scan QR'), findsNothing);
+      expect(find.byIcon(Icons.qr_code_scanner_rounded), findsNothing);
 
-      // Tap scanner action card
-      await tester.tap(find.text('Scan QR').first);
+      await tester.tap(find.text('UPI'));
       await tester.pumpAndSettle();
 
-      expect(cameraRouteOpened, isTrue);
-      expect(find.text('MOCK_CAMERA_SCREEN'), findsOneWidget);
+      expect(find.text('Paid'), findsOneWidget);
+      expect(find.text('Pending'), findsOneWidget);
+      expect(find.textContaining('UTR'), findsOneWidget);
     });
 
-    testWidgets('5. Handover to Recycler button opens the detailed payment and weight confirmation form', (tester) async {
+    testWidgets('5. PIN screen waits for website verification and does not re-ask recycler or weight', (tester) async {
       tester.view.physicalSize = const Size(1080, 2200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -292,6 +275,18 @@ void main() {
           ],
           home: HandoverQrScreen(
             recycler: sampleRecycler,
+            lot: EWasteLot(
+              id: 'lot_test_005',
+              categoryId: 'pcb_motherboard',
+              categoryName: 'Motherboard / PCB',
+              weightKg: 5.0,
+              condition: 'average',
+              estimatedMinPrice: 1200,
+              estimatedMaxPrice: 1600,
+              status: 'READY_FOR_HANDOVER',
+              syncStatus: AppConstants.syncPending,
+              createdAt: DateTime.now(),
+            ),
             initialHandover: testHandover,
             handoverRepository: handoverRepository,
           ),
@@ -299,21 +294,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Find "Handover to Recycler" payment form button
-      final paymentFormBtn = find.widgetWithText(OutlinedButton, 'Handover to Recycler');
-      expect(paymentFormBtn, findsOneWidget);
-
-      await tester.ensureVisible(paymentFormBtn);
-      await tester.tap(paymentFormBtn);
-      await tester.pumpAndSettle();
-
-      // Detailed form screen should open
-      expect(find.text('Select Authorized Recycler'), findsOneWidget);
-      expect(find.text('Enter Weight (kg)'), findsOneWidget);
-      expect(find.text('Payment Status'), findsOneWidget);
-
-      final confirmBtn = find.text('Confirm Handover & Payment');
-      expect(confirmBtn, findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Handover to Recycler'), findsNothing);
+      expect(find.text('Select Authorized Recycler'), findsNothing);
+      expect(find.text('Enter Weight (kg)'), findsNothing);
+      expect(find.textContaining('website'), findsWidgets);
+      expect(find.text('ORG'), findsNothing);
+      expect(find.text('EcoRecycle Maharashtra'), findsOneWidget);
     });
   });
 }

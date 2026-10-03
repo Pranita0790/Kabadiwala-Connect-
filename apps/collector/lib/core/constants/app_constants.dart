@@ -1,18 +1,18 @@
 class AppConstants {
   static const String appName = 'Kabadiwala Connect';
 
-  /// Override at build/run time if your Wi-Fi IP changes:
-  /// `--dart-define=BACKEND_URL=http://YOUR_IP:5000`
-  /// `--dart-define=API_BASE_URL=http://YOUR_IP:5000/api`
+  /// Android emulator loopback to the host machine. Physical devices must pass
+  /// `--dart-define=BACKEND_URL=http://YOUR_LAN_IP:5000`.
   static const String backendBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'http://10.1.106.69:5000',
+    defaultValue: 'http://10.0.2.2:5000',
   );
 
-  static const String apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.1.106.69:5000/api',
-  );
+  static const String apiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');
+
+  /// Uses [backendBaseUrl]/api unless `API_BASE_URL` is set explicitly.
+  static String get apiBaseUrl =>
+      apiBaseUrlOverride.isEmpty ? '$backendBaseUrl/api' : apiBaseUrlOverride;
 
   static const String appVersion = '1.0.0';
 
@@ -57,14 +57,8 @@ class HandoverStatus {
   static const String cancelled = 'CANCELLED';
 }
 
-/// TEMPORARY: a ready-made collector so the app opens without signing in.
-///
-/// This exists so the build can be reviewed and demoed without an SMS round
-/// trip. It grants nothing on the server — the profile is planted in local
-/// SQLite only, so API calls still fail until a real session exists.
-///
-/// Setting [autoSignInEnabled] to false restores the normal login gate; no
-/// other code has to change. Delete this class once real auth is in place.
+/// Demo collector used by Quick Demo Access. Login/register goes through the
+/// Node gateway so the session has a real JWT (not SQLite-only).
 class DemoAuth {
   /// While true, `AuthController.initialize()` signs [name] in automatically.
   static const bool autoSignInEnabled = false;
@@ -74,8 +68,6 @@ class DemoAuth {
   static const String city = 'Pune';
   static const String role = 'collector';
 
-  /// No password is defined on purpose: the seeded profile has no backend
-  /// account, so a password here would be a dead credential that reads like a
-  /// real secret. The sign-in screen takes the password from the person using
-  /// it.
+  /// Public demo password (min 8 chars for `/api/auth/register`). Not a prod secret.
+  static const String password = 'Pass1234a';
 }

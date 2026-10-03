@@ -1,17 +1,18 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/utils/formatters.dart';
 import '../../models/e_waste_lot.dart';
 import '../../models/handover.dart';
 import '../../models/recycler.dart';
 import '../../repositories/handover_repository.dart';
 import '../../repositories/lot_repository.dart';
 import '../../repositories/transaction_repository.dart';
+import '../../services/notification_service.dart';
 import '../earnings/earnings_screen.dart';
-import '../recycler/recycler_handover_screen.dart';
 
 class HandoverQrScreen extends StatefulWidget {
   final Recycler? recycler;
@@ -58,6 +59,15 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
   Handover? _handover;
   bool _isLoading = true;
   bool _isConfirming = false;
+  bool _missingLot = false;
+  bool _paymentReceived = false;
+  double _receiptAmount = 0;
+
+  /// Cash | UPI — preferred method for the recycler website to honour.
+  String _paymentMethod = 'CASH';
+  String _paymentStatus = 'PAID';
+  final TextEditingController _upiRefController = TextEditingController();
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -71,25 +81,71 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
     } else {
       _initializeHandover();
     }
+    _startPaymentPoll();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _upiRefController.dispose();
+    super.dispose();
+  }
+
+  void _startPaymentPoll() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      unawaited(_checkRemotePayment());
+    });
+  }
+
+  Future<void> _checkRemotePayment() async {
+    final lotId = widget.lot?.id ?? _handover?.lotId;
+    if (lotId == null || _paymentReceived || !mounted) return;
+    try {
+      final repo = widget.transactionRepository ?? TransactionRepository();
+      final ledger = await repo.fetchTransactions(forceRefresh: true);
+      final paid = ledger.transactions.where((tx) {
+        final sameLot = tx.lotId == lotId;
+        final status = tx.paymentStatus.toUpperCase();
+        return sameLot && (status == 'PAID' || status == 'RECEIVED');
+      });
+      if (paid.isEmpty || !mounted) return;
+      final tx = paid.first;
+      await NotificationService.instance.notifyRecyclerPayment(
+        recyclerName: _activeRecycler.name,
+        amount: tx.finalPrice,
+        lotId: lotId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _paymentReceived = true;
+        _receiptAmount = tx.finalPrice;
+        _handover = _handover?.copyWith(status: AppConstants.handoverConfirmed);
+      });
+    } catch (_) {}
   }
 
   Future<void> _initializeHandover() async {
+    if (widget.lot == null) {
+      setState(() {
+        _missingLot = true;
+        _isLoading = false;
+      });
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    final lotId = widget.lot?.id ?? 'demo-lot-${DateTime.now().millisecondsSinceEpoch}';
-    final material = widget.lot?.category ?? widget.lot?.categoryName ?? 'pcb';
-    final weight = widget.lot?.weightKg ?? 5.0;
+    final lot = widget.lot!;
     final rate = _activeRecycler.indicativeRatePerKg > 0
         ? _activeRecycler.indicativeRatePerKg
-        : 260.0;
-    final agreedPrice = weight * rate;
+        : ((lot.estimatedMinPrice + lot.estimatedMaxPrice) / 2) /
+            (lot.weightKg <= 0 ? 1 : lot.weightKg);
+    final agreedPrice = lot.weightKg * rate;
 
     final handover = await _handoverRepo.createHandoverLocally(
-      lotId: lotId,
-      recyclerId: _activeRecycler.id,
-      recyclerName: _activeRecycler.name,
-      materialCategory: material,
-      weightKg: weight,
+      lot: lot,
+      recycler: _activeRecycler,
       agreedPrice: agreedPrice,
     );
 
@@ -101,47 +157,44 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
     }
   }
 
-  Future<void> _openScanner() async {
-    // Reuses the existing camera/scanner screen and route
-    final result = await Navigator.pushNamed(context, '/camera');
-    if (result != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${AppLocalizations.of(context).translate('scanQr')}: ${_activeRecycler.name}',
-          ),
-          backgroundColor: AppColors.primary,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
   Future<void> _simulateConfirmation() async {
     if (_handover == null || _isConfirming) return;
 
     setState(() => _isConfirming = true);
 
     try {
+      final status = _paymentMethod == 'CASH' ? 'PAID' : _paymentStatus;
       final updated = await _handoverRepo.confirmHandover(
         _handover!.id,
         finalAmount: _handover!.agreedPrice,
+        paymentStatus: status,
       );
 
       if (mounted) {
         setState(() {
           _handover = updated;
           _isConfirming = false;
+          _paymentReceived = true;
+          _receiptAmount = updated.agreedPrice;
         });
+        unawaited(NotificationService.instance.notifyRecyclerPayment(
+          recyclerName: _activeRecycler.name,
+          amount: updated.agreedPrice,
+          lotId: updated.lotId,
+        ));
 
+        final loc = AppLocalizations.of(context);
+        final remoteFailed = updated.syncStatus == AppConstants.syncFailed;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              AppLocalizations.of(context).translate('handoverConfirmed'),
+              remoteFailed
+                  ? loc.translate('handoverRemoteFailed')
+                  : loc.translate('handoverConfirmed'),
             ),
-            backgroundColor: AppColors.primary,
+            backgroundColor: remoteFailed ? Colors.orange.shade800 : AppColors.primary,
             action: SnackBarAction(
-              label: AppLocalizations.of(context).translate('viewInLedger'),
+              label: loc.translate('viewInLedger'),
               textColor: Colors.white,
               onPressed: () {
                 Navigator.push(
@@ -156,33 +209,24 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _isConfirming = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).translate('handoverRemoteFailed'),
+            ),
+            backgroundColor: Colors.orange.shade800,
+          ),
+        );
       }
     }
   }
 
-  void _navigateToPaymentForm() {
-    final effectiveLot = widget.lot ??
-        EWasteLot(
-          id: _handover?.lotId ?? 'lot_demo_01',
-          categoryId: _handover?.materialCategory ?? 'pcb',
-          categoryName: _handover?.materialCategory.toUpperCase() ?? 'Motherboard / PCB',
-          weightKg: _handover?.weightKg ?? 5.0,
-          condition: 'good',
-          estimatedMinPrice: (_handover?.agreedPrice ?? 1300) * 0.9,
-          estimatedMaxPrice: (_handover?.agreedPrice ?? 1300) * 1.1,
-          status: 'READY_FOR_HANDOVER',
-          syncStatus: AppConstants.syncPending,
-          createdAt: DateTime.now(),
-        );
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RecyclerHandoverScreen(
-          lot: effectiveLot,
-          lotRepository: widget.lotRepository,
-          transactionRepository: widget.transactionRepository,
-        ),
+  void _copyPin(String pin, AppLocalizations loc) {
+    Clipboard.setData(ClipboardData(text: pin));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(loc.translate('pinCopied')),
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -196,53 +240,59 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(loc.translate('handoverQr')),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner_rounded),
-            tooltip: loc.translate('scanQr'),
-            onPressed: _openScanner,
-          ),
-        ],
+        title: Text(loc.translate('handoverPin')),
       ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             )
-          : SafeArea(
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 1. Status Header
-                    _buildStatusHeader(loc),
-                    const SizedBox(height: 16),
-
-                    // 2. Prominent QR Code Card
-                    _buildQrCard(loc),
-                    const SizedBox(height: 16),
-
-                    // 3. Prominent Scanner Card
-                    _buildScannerCard(loc),
-                    const SizedBox(height: 16),
-
-                    // 4. Handover Details Card
-                    _buildDetailsCard(loc),
-                    const SizedBox(height: 20),
-
-                    // 5. Actions / Simulation Button
-                    if (isConfirmed)
-                      _buildConfirmedAction(loc)
-                    else
-                      _buildPendingActions(loc),
-
-                    const SizedBox(height: 24),
-                  ],
+          : _missingLot
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          loc.translate('handoverNeedsLot'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(loc.translate('saveLot')),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : SafeArea(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildStatusHeader(loc),
+                        const SizedBox(height: 16),
+                        _buildPinCard(loc),
+                        const SizedBox(height: 16),
+                        if (!isConfirmed) ...[
+                          _buildPaymentCard(loc),
+                          const SizedBox(height: 16),
+                        ],
+                        _buildDetailsCard(loc),
+                        const SizedBox(height: 20),
+                        if (isConfirmed || _paymentReceived)
+                          _buildReceiptCard(loc)
+                        else
+                          _buildPendingActions(loc),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
     );
   }
 
@@ -286,9 +336,13 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
     );
   }
 
-  Widget _buildQrCard(AppLocalizations loc) {
+  Widget _buildPinCard(AppLocalizations loc) {
     final isConfirmed = _handover?.status == HandoverStatus.confirmed ||
         _handover?.status == AppConstants.handoverConfirmed;
+    final pinSeed = widget.lot?.id ?? _handover?.lotId ?? '';
+    final pin = pinSeed.isEmpty
+        ? '------'
+        : Handover.deriveHandoverPin(pinSeed);
 
     return Card(
       elevation: isConfirmed ? 4 : 2,
@@ -311,42 +365,58 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
                 color: AppColors.primaryDark,
               ),
             ),
-            const SizedBox(height: 14),
-
-            // QR Display
-            if (_handover != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: QrImageView(
-                  data: _handover!.qrPayload,
-                  version: QrVersions.auto,
-                  size: 200.0,
-                  backgroundColor: Colors.white,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: AppColors.primaryDark,
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                    color: AppColors.primaryDark,
-                  ),
-                ),
+            const SizedBox(height: 8),
+            Text(
+              loc.translate('handoverPinHint'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.35,
               ),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    loc.translate('handoverPin'),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    pin,
+                    style: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 8,
+                      fontFamily: 'monospace',
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  IconButton(
+                    onPressed: pinSeed.isEmpty
+                        ? null
+                        : () => _copyPin(pin, loc),
+                    icon: const Icon(Icons.copy_rounded),
+                    tooltip: loc.translate('pinCopied'),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
-
-            // Handover ID Preview
             Wrap(
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -371,26 +441,6 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
                     fontFamily: 'monospace',
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.copy_rounded, size: 16),
-                  tooltip: 'Copy ID',
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(),
-                  onPressed: () {
-                    if (_handover != null) {
-                      Clipboard.setData(
-                        ClipboardData(text: _handover!.id),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Handover ID copied to clipboard'),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    }
-                  },
-                ),
               ],
             ),
           ],
@@ -399,61 +449,141 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
     );
   }
 
-  Widget _buildScannerCard(AppLocalizations loc) {
+  Widget _buildPaymentCard(AppLocalizations loc) {
     return Card(
       elevation: 1.5,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppColors.primary.withValues(alpha: 0.25)),
+        side: BorderSide(color: Colors.grey.shade200),
       ),
-      child: InkWell(
-        onTap: _openScanner,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              loc.translate('paymentMethod'),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: SizedBox(
+                      height: 40,
+                      child: Center(
+                        child: Text(
+                          loc.translate('payCash'),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _paymentMethod == 'CASH' ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                    selected: _paymentMethod == 'CASH',
+                    selectedColor: AppColors.primary,
+                    backgroundColor: Colors.white,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _paymentMethod = 'CASH';
+                          _paymentStatus = 'PAID';
+                        });
+                      }
+                    },
+                  ),
                 ),
-                child: const Icon(
-                  Icons.qr_code_scanner_rounded,
-                  color: AppColors.primaryDark,
-                  size: 26,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ChoiceChip(
+                    label: SizedBox(
+                      height: 40,
+                      child: Center(
+                        child: Text(
+                          loc.translate('payUpi'),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _paymentMethod == 'UPI' ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                    selected: _paymentMethod == 'UPI',
+                    selectedColor: AppColors.primary,
+                    backgroundColor: Colors.white,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _paymentMethod = 'UPI');
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            if (_paymentMethod == 'UPI') ...[
+              const SizedBox(height: 14),
+              Text(
+                loc.translate('paymentStatus'),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      loc.translate('scanQr'),
-                      style: const TextStyle(
-                        fontSize: 15,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ChoiceChip(
+                      label: Text(loc.translate('paid')),
+                      selected: _paymentStatus == 'PAID',
+                      selectedColor: AppColors.syncSuccess,
+                      labelStyle: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: _paymentStatus == 'PAID' ? Colors.white : Colors.black87,
                       ),
+                      onSelected: (selected) {
+                        if (selected) setState(() => _paymentStatus = 'PAID');
+                      },
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      loc.translate('scanQrPrompt') == 'scanQrPrompt'
-                          ? 'Scan recycler code to verify authorization'
-                          : loc.translate('scanQrPrompt'),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ChoiceChip(
+                      label: Text(loc.translate('pending')),
+                      selected: _paymentStatus == 'PENDING',
+                      selectedColor: AppColors.syncPending,
+                      labelStyle: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: _paymentStatus == 'PENDING' ? Colors.white : Colors.black87,
                       ),
+                      onSelected: (selected) {
+                        if (selected) setState(() => _paymentStatus = 'PENDING');
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _upiRefController,
+                decoration: InputDecoration(
+                  labelText: loc.translate('upiRefHint'),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                ),
+                textCapitalization: TextCapitalization.characters,
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -492,6 +622,12 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
             ),
             const Divider(height: 18),
             _DetailRow(
+              label: loc.translate('lotRefLabel'),
+              value: widget.lot?.id ?? _handover?.lotId ?? '—',
+              icon: Icons.tag_rounded,
+            ),
+            const Divider(height: 18),
+            _DetailRow(
               label: loc.translate('finalAmount'),
               value: '₹${_handover?.agreedPrice.toStringAsFixed(0)}',
               icon: Icons.currency_rupee_rounded,
@@ -503,37 +639,76 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
     );
   }
 
-  Widget _buildConfirmedAction(AppLocalizations loc) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const EarningsScreen(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.account_balance_wallet_rounded, size: 22),
-        label: Text(
-          loc.translate('viewInLedger'),
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
+  Widget _buildReceiptCard(AppLocalizations loc) {
+    final amount = _receiptAmount > 0
+        ? _receiptAmount
+        : (_handover?.agreedPrice ?? 0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
           elevation: 2,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: AppColors.syncSuccess, size: 56),
+                const SizedBox(height: 12),
+                Text(
+                  loc.translate('paymentReceiptTitle'),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  loc.translate('paymentFromRecycler'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _activeRecycler.name,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  Formatters.currency(amount),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const EarningsScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.account_balance_wallet_rounded, size: 22),
+            label: Text(
+              loc.translate('viewInLedger'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -541,30 +716,21 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Demo Test Trigger
-        _buildDemoTrigger(loc),
-        const SizedBox(height: 14),
-
-        // Optional step to open detailed weight & payment confirmation form
-        OutlinedButton.icon(
-          onPressed: _navigateToPaymentForm,
-          icon: const Icon(Icons.edit_note_rounded, size: 22, color: AppColors.primaryDark),
-          label: Text(
-            loc.translate('handoverToRecycler'),
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark,
-            ),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE3F2FD),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.blue.shade200),
           ),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            side: const BorderSide(color: AppColors.primary, width: 1.5),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
+          child: Text(
+            loc.translate('waitingForRecyclerPay'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, height: 1.4, fontWeight: FontWeight.w600),
           ),
         ),
+        const SizedBox(height: 14),
+        _buildDemoTrigger(loc),
       ],
     );
   }

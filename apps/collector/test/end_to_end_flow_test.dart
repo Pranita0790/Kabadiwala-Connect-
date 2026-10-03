@@ -155,8 +155,10 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
       await tester.pumpAndSettle();
 
-      expect(find.text('Pending Sync: 1'), findsOneWidget);
-      expect(find.text('10.0 kg • GOOD'), findsOneWidget);
+      // After save, the collector lands on lot details (not an empty matching screen).
+      expect(find.text('Lot Details'), findsOneWidget);
+      expect(find.text('Handover to Recycler'), findsOneWidget);
+      expect(find.text('Find Recycler'), findsOneWidget);
 
       // Verify SQLite state directly
       final localLots = await tester.runAsync(() => dbService.getLots());
@@ -165,18 +167,7 @@ void main() {
       expect(createdLot.weightKg, equals(10.0));
       expect(createdLot.syncStatus, equals(AppConstants.syncPending));
 
-      // Step 6: Tap recorded lot to view LOT DETAILS & Price Estimate
-      await tester.ensureVisible(find.text('10.0 kg • GOOD'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('10.0 kg • GOOD'));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
-      await tester.pump();
-      await tester.pumpAndSettle();
-
-      expect(find.text('Lot Details'), findsOneWidget);
-      expect(find.text('Handover to Recycler'), findsOneWidget);
-
-      // Step 7: Tap "Handover to Recycler" to initiate Recycler Flow with QR / Scanner
+      // Step 6: Tap "Handover to Recycler" to initiate PIN handover flow
       await tester.ensureVisible(find.text('Handover to Recycler'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Handover to Recycler'));
@@ -185,30 +176,24 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
       await tester.pumpAndSettle();
 
-      // Handover QR / Scanner screen is displayed
+      // Handover PIN screen is displayed (not QR scan)
       expect(find.text('Ready for Handover'), findsOneWidget);
-      expect(find.text('Scan QR'), findsWidgets);
+      expect(find.text('Handover PIN'), findsWidgets);
+      expect(find.text('Cash'), findsOneWidget);
+      expect(find.text('UPI'), findsOneWidget);
 
-      // Proceed to detailed payment & weight confirmation form
-      final paymentFormBtn = find.widgetWithText(OutlinedButton, 'Handover to Recycler');
-      await tester.ensureVisible(paymentFormBtn);
-      await tester.tap(paymentFormBtn);
+      expect(find.textContaining('website'), findsWidgets);
+
+      // Step 8: Simulate recycler website PIN + payment (hackathon demo)
+      await tester.ensureVisible(find.text('Simulate Recycler Confirmation (Demo)'));
       await tester.pumpAndSettle();
-
-      expect(find.text('Select Authorized Recycler'), findsOneWidget);
-      expect(find.text('Confirm Handover & Payment'), findsOneWidget);
-
-      // Step 8: Confirm Handover
-      await tester.ensureVisible(find.text('Confirm Handover & Payment'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Confirm Handover & Payment'));
+      await tester.tap(find.text('Simulate Recycler Confirmation (Demo)'));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
       await tester.pump();
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
       await tester.pumpAndSettle();
 
-      // Verify Handover Success & Transaction Status screen
-      expect(find.text('Material handed over successfully!'), findsOneWidget);
+      expect(find.text('Payment receipt'), findsOneWidget);
       expect(find.text('View in Earnings Ledger'), findsOneWidget);
 
       // Step 9: Navigate to EARNINGS LEDGER

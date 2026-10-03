@@ -262,6 +262,31 @@ class NotificationService {
     await refreshNotifications();
   }
 
+  /// Receipt-style notice after the recycler pays on the website.
+  Future<void> notifyRecyclerPayment({
+    required String recyclerName,
+    required double amount,
+    required String lotId,
+  }) async {
+    final rupees = amount.toStringAsFixed(0);
+    final notif = AppNotification(
+      id: 'notif_pay_${lotId}_${DateTime.now().millisecondsSinceEpoch}',
+      titleEn: 'Payment received from $recyclerName',
+      titleHi: '$recyclerName से भुगतान प्राप्त',
+      titleMr: '$recyclerName कडून पेमेंट मिळाले',
+      bodyEn: '₹$rupees paid by $recyclerName for lot $lotId. Receipt saved in Earnings.',
+      bodyHi: '₹$rupees $recyclerName ने माल $lotId के लिए भुगतान किया। रसीद कमाई में है।',
+      bodyMr: '₹$rupees $recyclerName ने माल $lotId साठी भरले. पावती कमाईत आहे.',
+      type: AppConstants.notificationHandover,
+      relatedId: lotId,
+      timestamp: DateTime.now(),
+      isRead: false,
+      isDemo: false,
+    );
+    await _dbService.insertNotification(notif);
+    await refreshNotifications();
+  }
+
   void dispose() {
     _unreadCountController.close();
     _notificationsController.close();

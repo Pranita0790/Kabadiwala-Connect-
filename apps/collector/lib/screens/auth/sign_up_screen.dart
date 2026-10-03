@@ -474,7 +474,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ? null
                     : () async {
                         setState(() => _isLoading = true);
-                        await _authController.signInAsDemoUser(
+                        final ok = await _authController.signInAsDemoUser(
                           name: _nameController.text.trim().isNotEmpty
                               ? _nameController.text.trim()
                               : null,
@@ -485,6 +485,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ? _cityController.text.trim()
                               : null,
                         );
+                        if (!mounted) return;
+                        setState(() => _isLoading = false);
+                        if (!ok) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(loc.translate('demoLoginFailed')),
+                            ),
+                          );
+                        }
                       },
                 icon: const Icon(Icons.flash_on_rounded,
                     color: AppColors.secondary, size: 20),

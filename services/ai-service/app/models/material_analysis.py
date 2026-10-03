@@ -32,3 +32,7 @@ class MaterialAnalysisResponse(BaseModel):
     weight_estimate: WeightEstimate
     value_estimate: ValueEstimate
     suggested_condition: str | None = None
+    category: str | None = None
+    category_id: str | None = None
+    electronic_device: str | None = None
+    short_description: str | None = None

@@ -364,4 +364,81 @@ class AuthService {
     _lastGeneratedOtp = null;
     _lastPhoneSent = null;
   }
+
+  /// Registers (if needed) and logs in the labeled demo collector so AI/sync get a JWT.
+  Future<AuthVerificationResult> signInDemoCollector({
+    required String name,
+    required String phone,
+    required String city,
+    String role = 'collector',
+    required String password,
+  }) async {
+    final cleanPhone = normalizePhoneNumber(phone);
+
+    var remote = await _api.loginWithPassword(
+      identifier: cleanPhone,
+      password: password,
+    );
+
+    if (!remote.success || remote.data == null) {
+      await _api.registerCollector(
+        fullName: name.trim(),
+        phone: cleanPhone,
+        password: password,
+      );
+      remote = await _api.loginWithPassword(
+        identifier: cleanPhone,
+        password: password,
+      );
+    }
+
+    if (!remote.success || remote.data == null) {
+      return AuthVerificationResult(
+        success: false,
+        errorMessage: remote.errorMessage ?? 'demoLoginFailed',
+      );
+    }
+
+    final data = remote.data!;
+    final access = data['accessToken'] as String? ?? '';
+    final refresh = data['refreshToken'] as String?;
+    final remoteUser = data['user'] as Map<String, dynamic>?;
+    final backendUserId = remoteUser?['id']?.toString();
+
+    if (access.isEmpty) {
+      return const AuthVerificationResult(
+        success: false,
+        errorMessage: 'demoLoginFailed',
+      );
+    }
+
+    await _sessionStore.save(
+      accessToken: access,
+      refreshToken: refresh,
+      userId: backendUserId,
+    );
+    _api.setAuthToken(access);
+
+    final local = await _dbService.getUserByPhone(cleanPhone);
+    final profile = UserProfile.create(
+      id: local?.id,
+      name: (remoteUser?['fullName'] as String?)?.trim().isNotEmpty == true
+          ? remoteUser!['fullName'] as String
+          : name.trim(),
+      phoneNumber: cleanPhone,
+      passwordHash: hashPassword(password),
+      city: city.trim(),
+      role: role,
+      photoPath: local?.photoPath,
+      isProfileComplete: true,
+    );
+    await _dbService.saveUser(profile);
+    await _dbService.setCurrentUserId(profile.id);
+
+    return AuthVerificationResult(
+      success: true,
+      isNewUser: false,
+      user: profile,
+    );
+  }
 }

@@ -2,6 +2,7 @@ import '../models/price.dart';
 import '../services/api_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/database_service.dart';
+import '../services/lot_valuation.dart';
 
 class PriceBoardData {
   final List<Price> prices;
@@ -39,8 +40,9 @@ class PriceRepository {
     if (isConnected) {
       try {
         final response = await _apiService.fetchMarketPrices();
-        if (response.success && response.data != null && response.data!.isNotEmpty) {
-          // Cache each price into SQLite
+        if (response.success &&
+            response.data != null &&
+            response.data!.isNotEmpty) {
           for (final price in response.data!) {
             await _dbService.insertPrice(price);
           }
@@ -178,5 +180,19 @@ class PriceRepository {
     for (final price in prices) {
       await _dbService.insertPrice(price);
     }
+  }
+
+  (double, double) estimateLotValue({
+    required String categoryId,
+    required double weightKg,
+    required String condition,
+    required List<Price> prices,
+  }) {
+    return LotValuation.estimateRange(
+      categoryId: categoryId,
+      weightKg: weightKg,
+      condition: condition,
+      prices: prices,
+    );
   }
 }

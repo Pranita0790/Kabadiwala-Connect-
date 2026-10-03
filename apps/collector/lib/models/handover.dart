@@ -2,7 +2,7 @@ import 'dart:convert';
 import '../core/constants/app_constants.dart';
 
 /// Model representing an offline-first e-waste material handover record.
-/// Encapsulates a secure, non-sensitive QR payload for collector-recycler physical transactions.
+/// Stores a compact payload (PIN + ids) for collector–recycler physical handovers.
 class Handover {
   final String id;
   final String lotId;
@@ -36,7 +36,25 @@ class Handover {
 
   double get agreedPrice => agreedAmount;
 
-  /// Generates a safe, non-personal conceptual QR payload string
+  /// 6-digit PIN derived from [lotId] (same algorithm as recycler dashboard).
+  String get handoverPin => deriveHandoverPin(lotId);
+
+  /// Portable PIN: first 8 chars of id (dashes stripped), non-hex → `0`,
+  /// then parse as hex mod 1_000_000.
+  /// Must stay identical to `deriveHandoverPin` in the recycler dashboard.
+  static String deriveHandoverPin(String id) {
+    final cleaned = id.replaceAll('-', '').toLowerCase();
+    final buf = StringBuffer();
+    for (var i = 0; i < cleaned.length && buf.length < 8; i++) {
+      final c = cleaned[i];
+      buf.write(RegExp(r'[0-9a-f]').hasMatch(c) ? c : '0');
+    }
+    final seed = buf.toString().padRight(8, '0');
+    final value = int.parse(seed, radix: 16) % 1000000;
+    return value.toString().padLeft(6, '0');
+  }
+
+  /// Generates a safe, non-personal payload string (includes handover PIN).
   static String buildSafeQrPayload({
     required String handoverId,
     required String lotId,
@@ -45,6 +63,7 @@ class Handover {
     return jsonEncode({
       'handover_id': handoverId,
       'lot_id': lotId,
+      'pin': deriveHandoverPin(lotId),
       'version': version,
       'type': 'E_WASTE_HANDOVER',
     });

@@ -9,6 +9,9 @@ class ClassificationResult {
   final double? weightKg;
   final String? condition;
   final String? notes;
+  final bool isLowConfidence;
+  final String? electronicDevice;
+  final String? shortDescription;
 
   ClassificationResult({
     required this.categoryId,
@@ -18,6 +21,9 @@ class ClassificationResult {
     this.weightKg,
     this.condition,
     this.notes,
+    this.isLowConfidence = false,
+    this.electronicDevice,
+    this.shortDescription,
   });
 }
 
@@ -42,7 +48,11 @@ class MockAiClassificationService implements AiClassificationService {
       isMockResult: true,
       weightKg: 1.5,
       condition: 'scrap',
-      notes: 'AI suggested Motherboard / PCB (92%)',
+      electronicDevice: 'Printed circuit board',
+      shortDescription:
+          'Circuit board with chips and copper traces; best match is Motherboard / PCB.',
+      notes:
+          'Printed circuit board. Circuit board with chips and copper traces; best match is Motherboard / PCB.',
     );
   }
 }

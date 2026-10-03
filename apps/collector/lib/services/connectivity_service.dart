@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'backend_url.dart';
 
 /// Service responsible for monitoring network connectivity status.
 /// Supports mock overrides for deterministic unit & integration testing.
@@ -63,9 +64,11 @@ class ConnectivityService {
         const Duration(milliseconds: 500),
         onTimeout: () => [ConnectivityResult.none],
       );
-      return _isResultsOnline(results);
+      if (_isResultsOnline(results)) return true;
+      await BackendUrl.resolve();
+      return BackendUrl.hasResolved;
     } catch (_) {
-      return false;
+      return BackendUrl.hasResolved;
     }
   }
 

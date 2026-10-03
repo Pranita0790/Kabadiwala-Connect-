@@ -46,8 +46,9 @@ export default function VerificationHub() {
         <div>
           <h3>Handover verification</h3>
           <p>
-            Confirm physical delivery for accepted lots. Complete verification
-            to move a lot to Completed and create settlement records.
+            Confirm physical delivery for accepted lots. Ask the collector for
+            the 6-digit PIN from the app, then complete verification to move a
+            lot to Completed and create settlement records.
           </p>
         </div>
         <button

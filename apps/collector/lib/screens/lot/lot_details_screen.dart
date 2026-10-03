@@ -175,7 +175,7 @@ class LotDetailsScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.pushNamed(
                   context,
-                  '/recycler-handover',
+                  '/recyclers',
                   arguments: lot,
                 );
               },

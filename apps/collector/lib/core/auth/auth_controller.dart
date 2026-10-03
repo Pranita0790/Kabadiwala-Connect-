@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/app_constants.dart';
 import '../../models/user_profile.dart';
 import '../../services/auth_service.dart';
 
@@ -124,8 +125,7 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  /// Public method to instantly sign in as a demo user or custom profile.
-  /// Works without SMS OTP — ideal for testing post-login screens and backend.
+  /// Quick Demo Access: register/login the labeled demo collector and mint a JWT.
   Future<bool> signInAsDemoUser({
     String? name,
     String? phone,
@@ -139,25 +139,33 @@ class AuthController extends ChangeNotifier {
     try {
       final userPhone = (phone != null && phone.trim().isNotEmpty)
           ? phone.trim()
-          : '9876543210';
+          : DemoAuth.phoneNumber;
       final userName = (name != null && name.trim().isNotEmpty)
           ? name.trim()
-          : 'Ramesh Shinde';
+          : DemoAuth.name;
       final userCity = (city != null && city.trim().isNotEmpty)
           ? city.trim()
-          : 'Pune';
-      final userRole = role ?? 'collector';
+          : DemoAuth.city;
+      final userRole = role ?? DemoAuth.role;
 
-      _currentUser = await _authService.completeUserProfile(
-        phoneNumber: userPhone,
+      final result = await _authService.signInDemoCollector(
         name: userName,
+        phone: userPhone,
         city: userCity,
         role: userRole,
+        password: DemoAuth.password,
       );
 
-      return true;
+      if (result.success && result.user != null) {
+        _currentUser = result.user;
+        _errorMessage = null;
+        return true;
+      }
+
+      _errorMessage = result.errorMessage ?? 'demoLoginFailed';
+      return false;
     } catch (error) {
-      _errorMessage = 'authErrorUnknown';
+      _errorMessage = 'demoLoginFailed';
       return false;
     } finally {
       _isLoading = false;

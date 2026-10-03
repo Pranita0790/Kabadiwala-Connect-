@@ -26,6 +26,8 @@ import {
     getStoredLots,
     updateLotStatus,
   } from "../data/lotsStore";
+  import { confirmHandover } from "../lib/api";
+  import { deriveHandoverPin } from "../lib/handoverPin";
   
   function HandoverVerification() {
     const location = useLocation();
@@ -36,6 +38,12 @@ import {
     );
   
     const [physicalWeight, setPhysicalWeight] =
+      useState("");
+
+    const [collectorPin, setCollectorPin] =
+      useState("");
+
+    const [paymentMethod, setPaymentMethod] =
       useState("");
   
     const [collectorVerified, setCollectorVerified] =
@@ -133,6 +141,23 @@ import {
   
       const measuredWeight =
         Number(physicalWeight);
+
+      const enteredPin = collectorPin.trim();
+      const expectedPin = deriveHandoverPin(lot.id);
+
+      if (!/^\d{6}$/.test(enteredPin)) {
+        setError(
+          "Enter the 6-digit PIN shown on the collector app."
+        );
+        return;
+      }
+
+      if (enteredPin !== expectedPin) {
+        setError(
+          "Incorrect collector PIN. Ask the collector to show the PIN from their app."
+        );
+        return;
+      }
   
       if (
         !physicalWeight ||
@@ -169,8 +194,21 @@ import {
   
         return;
       }
+
+      if (paymentMethod !== "CASH" && paymentMethod !== "UPI") {
+        setError(
+          "Select Cash or UPI, then pay the collector before completing."
+        );
+        return;
+      }
   
       try {
+        const handoverRef = lot.publicId || lot.id;
+        try {
+          await confirmHandover(handoverRef);
+        } catch {
+          // Lot status still marks paid for the collector sync path.
+        }
         const updatedLots = await updateLotStatus(
           lot.id,
           "Completed"
@@ -440,6 +478,50 @@ import {
   
                 </div>
   
+              </section>
+  
+              {/* COLLECTOR PIN */}
+
+              <section className="details-card">
+                <div className="section-heading">
+                  <div className="heading-icon">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h2>Collector PIN</h2>
+                    <p>
+                      Ask the collector for the 6-digit
+                      PIN from the Kabadiwala Connect app.
+                      This replaces QR scanning when the
+                      recycler uses the website.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="weight-input-block">
+                  <label htmlFor="collector-pin">
+                    6-digit handover PIN
+                  </label>
+                  <div className="weight-input">
+                    <input
+                      id="collector-pin"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      placeholder="••••••"
+                      value={collectorPin}
+                      onChange={(event) => {
+                        const digits = event.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 6);
+                        setCollectorPin(digits);
+                        setError("");
+                      }}
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+                </div>
               </section>
   
               {/* PHYSICAL WEIGHT */}
@@ -815,6 +897,39 @@ import {
   
               </section>
   
+              {/* PAY COLLECTOR */}
+
+              <section className="details-card">
+                <h3>Pay collector</h3>
+                <p>
+                  After the PIN matches, settle payment
+                  here. The collector app then shows a
+                  receipt and updates earnings.
+                </p>
+                <div className="weight-comparison" style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className={paymentMethod === "CASH" ? "accept-button" : "secondary-button"}
+                    onClick={() => {
+                      setPaymentMethod("CASH");
+                      setError("");
+                    }}
+                  >
+                    Cash
+                  </button>
+                  <button
+                    type="button"
+                    className={paymentMethod === "UPI" ? "accept-button" : "secondary-button"}
+                    onClick={() => {
+                      setPaymentMethod("UPI");
+                      setError("");
+                    }}
+                  >
+                    UPI
+                  </button>
+                </div>
+              </section>
+  
               {/* COMPLETE */}
   
               <section className="details-card action-card">
@@ -824,9 +939,8 @@ import {
                 </h3>
   
                 <p>
-                  All three verification checks must
-                  be completed before the lot can be
-                  marked as completed.
+                  PIN, checks, and payment must be
+                  completed before the lot is marked paid.
                 </p>
   
                 {error && (

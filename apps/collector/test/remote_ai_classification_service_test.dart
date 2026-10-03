@@ -177,6 +177,40 @@ void main() {
       expect(result.confidenceScore, 0.88);
     });
 
+    test('fills category, electronic_device and short_description from JSON', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'material': 'cable',
+            'confidence': 0.91,
+            'category': 'Copper Wire',
+            'category_id': 'copper_wire',
+            'electronic_device': 'Electrical cable / copper wire',
+            'short_description': 'Insulated copper wiring; best match is Copper Wire.',
+            'critical_mineral': false,
+            'suggested_condition': 'average',
+            'weight_estimate': {'estimated_weight_kg': 5.0},
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final service = RemoteAiClassificationService(
+        baseUrl: 'http://localhost:5000',
+        client: mockClient,
+      );
+
+      final result = await service.classifyEWasteImage(dummyFile.path);
+
+      expect(result, isNotNull);
+      expect(result!.categoryId, 'copper_wire');
+      expect(result.categoryName, 'Copper Wire');
+      expect(result.electronicDevice, 'Electrical cable / copper wire');
+      expect(result.shortDescription, contains('Copper Wire'));
+      expect(result.notes, contains('Electrical cable'));
+    });
+
     test('returns null on non-200 backend response', () async {
       final mockClient = MockClient((request) async {
         return http.Response('{"error": "Invalid image"}', 400);

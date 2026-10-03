@@ -87,3 +87,28 @@ Verify the output matches the expected FastAPI output shape (e.g. `{"material": 
 - [ ] Battery/Cable classification accurate
 - [ ] Invalid image handled cleanly
 - [ ] FastAPI downtime handled cleanly
+
+---
+
+## 5. P0 demo path (collector journey)
+
+Run the trio before a live demo:
+
+1. AI: `cd services/ai-service` then `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+2. Backend: `cd services/backend` then `npm start` (port 5000)
+3. Flutter emulator: `cd apps/collector` then `flutter run --dart-define=BACKEND_URL=http://10.0.2.2:5000`
+   - Physical device: `--dart-define=BACKEND_URL=http://YOUR_LAN_IP:5000`
+
+Checklist:
+
+- [ ] Quick Demo Access (or login `9876543210` / `Pass1234a`) obtains a JWT; Create Lot AI is not 401
+- [ ] Camera photo: high-confidence result fills category; confidence &lt; 0.60 or `unknown` asks to retake / pick manually
+- [ ] AI down (stop FastAPI): banner “Unable to identify. Choose category or retry.” — no fake live AI
+- [ ] Estimated value shows ₹ min–max from `/api/prices` (or labeled last-known/demo rates)
+- [ ] Save lot, pick website recycler (ORG), then handover PIN — do not re-ask recycler/weight; payment waits for website PIN
+- [ ] Recycler dashboard: enter PIN, pay Cash/UPI, complete — collector gets receipt + notification and earnings rise
+- [ ] Offline: lots/handovers still save; SyncStatusBar shows Online/Offline/Syncing/Failed; do not claim AI works offline
+- [ ] Recycler dashboard: Incoming Lots after lot+handover sync; enter the same 6-digit PIN from the collector app on Handover Verification
+
+Demo collector password is labeled for hackathon JWT minting only (`DemoAuth`). Do not treat it as a production secret.
+

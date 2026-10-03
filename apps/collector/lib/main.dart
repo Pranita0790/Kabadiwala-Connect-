@@ -284,7 +284,10 @@ class KabadiwalaConnectApp extends StatelessWidget {
                 final lot = settings.arguments as EWasteLot?;
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => RecyclerMatchingScreen(lot: lot),
+                  builder: (context) => RecyclerMatchingScreen(
+                    lot: lot,
+                    lotRepository: lotRepository,
+                  ),
                 );
               case '/safety':
                 return MaterialPageRoute(

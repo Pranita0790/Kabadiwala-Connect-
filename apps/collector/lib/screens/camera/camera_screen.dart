@@ -64,11 +64,12 @@ class _CameraScreenState extends State<CameraScreen> {
       (kIsWeb && _capturedImageBytes != null) ||
       (!kIsWeb && _capturedImagePath != null);
 
+  /// Web has image bytes only — skip AI until a native file path exists.
   void _continueToLotCreation() {
     Navigator.pushNamed(
       context,
       '/create-lot',
-      arguments: _capturedImagePath,
+      arguments: kIsWeb ? null : _capturedImagePath,
     );
   }
 
