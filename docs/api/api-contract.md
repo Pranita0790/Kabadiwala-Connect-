@@ -372,3 +372,18 @@ The process starts even when `DATABASE_URL` is not configured.
 - Every other `/api/*` route answers `503` with code `DATABASE_NOT_CONFIGURED`
   rather than a connection error.
 - `/health/ready` reports `degraded` with per-dependency detail.
+
+---
+
+## 14. Customer / User APIs
+
+Endpoints supporting the Customer application (`apps/user/`).
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/api/user/vendors` | optional | Returns nearby Kabadiwalas with rating, distance, address, operating hours, and rate cards. |
+| `POST` | `/api/user/requests` | optional | Submit a new scrap pickup request. |
+| `GET` | `/api/user/requests` | optional | Fetch user's active and past pickup requests. |
+| `GET` | `/api/user/payments` | optional | Fetch user's payment transaction history. |
+| `GET` | `/api/user/collections` | optional | Fetch completed scrap collection history with itemized breakdowns. |
+

@@ -53,6 +53,7 @@ const notificationsRoutes = require("./modules/notifications/notifications.route
 const priceAlertsRoutes = require("./modules/price-alerts/price-alerts.routes");
 const pickupRequestsRoutes = require("./modules/pickup-requests/pickup-requests.routes");
 const collectorRatesRoutes = require("./modules/collector-rates/collector-rates.routes");
+const userApiRoutes = require("./modules/user-api/user-api.routes");
 const aiRoutes = require("./modules/ai/ai.routes");
 
 const app = express();
@@ -154,6 +155,7 @@ app.use("/api/notifications", requireDatabase, notificationsRoutes);
 app.use("/api/price-alerts", requireDatabase, priceAlertsRoutes);
 app.use("/api/pickup-requests", pickupRequestsRoutes);
 app.use("/api/collector-rates", collectorRatesRoutes);
+app.use("/api/user", userApiRoutes);
 
 /*
 |--------------------------------------------------------------------------
