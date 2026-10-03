@@ -283,26 +283,14 @@ class DatabaseService {
         role TEXT NOT NULL DEFAULT 'collector',
         photo_path TEXT,
         is_profile_complete INTEGER NOT NULL DEFAULT 1,
-        backend_user_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
     ''');
 
-    // Backward-compatible column migrations if the table already existed.
+    // Backward-compatible column migration if table existed
     try {
       await db.execute('ALTER TABLE ${AppConstants.tableUsers} ADD COLUMN password_hash TEXT');
-    } catch (_) {}
-
-    /*
-     | The backend's user id, returned by POST /api/auth/firebase/sign-in.
-     |
-     | Needed so API calls can identify this collector to the server while
-     | offline. Nullable: a profile can exist locally before the first
-     | successful sync.
-     */
-    try {
-      await db.execute('ALTER TABLE ${AppConstants.tableUsers} ADD COLUMN backend_user_id TEXT');
     } catch (_) {}
   }
 
@@ -632,27 +620,6 @@ class DatabaseService {
       );
     } catch (e) {
       throw DatabaseException('Failed to save setting: $key', e);
-    }
-  }
-
-  /// Remove a stored setting.
-  ///
-  /// Used by sign-out to clear the cached backend session. Clearing must
-  /// work without a network connection, so this is a local delete only.
-  Future<void> deleteSetting(String key) async {
-    try {
-      final db = await database;
-      await db.execute(
-        'CREATE TABLE IF NOT EXISTS ${AppConstants.tableSettings} '
-        '(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
-      );
-      await db.delete(
-        AppConstants.tableSettings,
-        where: 'key = ?',
-        whereArgs: [key],
-      );
-    } catch (e) {
-      throw DatabaseException('Failed to delete setting: $key', e);
     }
   }
 
@@ -1039,7 +1006,6 @@ class DatabaseService {
           role TEXT NOT NULL DEFAULT 'collector',
           photo_path TEXT,
           is_profile_complete INTEGER NOT NULL DEFAULT 1,
-          backend_user_id TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         )
@@ -1066,7 +1032,6 @@ class DatabaseService {
           role TEXT NOT NULL DEFAULT 'collector',
           photo_path TEXT,
           is_profile_complete INTEGER NOT NULL DEFAULT 1,
-          backend_user_id TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         )
@@ -1095,7 +1060,6 @@ class DatabaseService {
           role TEXT NOT NULL DEFAULT 'collector',
           photo_path TEXT,
           is_profile_complete INTEGER NOT NULL DEFAULT 1,
-          backend_user_id TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         )

@@ -31,13 +31,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
 
   final FocusNode _nameFocusNode = FocusNode();
   final FocusNode _phoneFocusNode = FocusNode();
+  final FocusNode _passwordFocusNode = FocusNode();
+  final FocusNode _confirmPasswordFocusNode = FocusNode();
   final FocusNode _cityFocusNode = FocusNode();
 
   String _selectedRole = 'collector';
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   String? _errorMessage;
   bool _isLoading = false;
 
@@ -60,10 +66,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _cityController.dispose();
 
     _nameFocusNode.dispose();
     _phoneFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    _confirmPasswordFocusNode.dispose();
     _cityFocusNode.dispose();
 
     super.dispose();
@@ -73,6 +83,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final loc = AppLocalizations.of(context);
     final name = _nameController.text.trim();
     final rawPhone = _phoneController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
     final city = _cityController.text.trim();
 
     // 1. Validation
@@ -87,6 +99,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
+    final passwordError = AuthService.validatePassword(password);
+    if (passwordError != null) {
+      setState(() => _errorMessage = loc.translate('passwordLengthError'));
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() => _errorMessage = loc.translate('passwordsDoNotMatch'));
+      return;
+    }
+
     if (city.isEmpty) {
       setState(() => _errorMessage = loc.translate('cityRequiredError'));
       return;
@@ -98,25 +121,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
 
     try {
-      /*
-       | No local "does this number exist" check.
-       |
-       | It used to run against SQLite, which cannot know about accounts
-       | registered on another device, so it was both wrong and a way to
-       | enumerate who was signed up. The backend is the only authority on
-       | whether a number exists, and it links the account silently on
-       | sign-in.
-       */
-      await _authController.initiateSignUp(
+      // 2. Check if mobile number already exists in SQLite database
+      final exists = await AuthService.instance.checkUserExists(rawPhone);
+      if (exists) {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = loc.translate('accountAlreadyExists');
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 3. Initiate OTP verification with pending registration data
+      final initiated = await _authController.initiateSignUp(
         name: name,
         phoneNumber: rawPhone,
+        password: password,
         city: city,
         role: _selectedRole,
       );
 
       if (!mounted) return;
 
-      if (_authController.errorMessage == null) {
+      if (initiated) {
+        // Navigate to OTP verification screen
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => OtpVerificationScreen(
@@ -127,7 +155,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         );
       } else {
         setState(() {
-          _errorMessage = loc.translate(_authController.errorMessage!);
+          _errorMessage = _authController.errorMessage != null
+              ? loc.translate(_authController.errorMessage!)
+              : loc.translate('validMobileError');
         });
       }
     } catch (e) {
@@ -280,7 +310,53 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                       const SizedBox(height: 16),
 
-                      // 3. Area / City
+                      // 3. Password
+                      _buildFieldLabel(loc.translate('password'), Icons.lock_outline_rounded),
+                      const SizedBox(height: 8),
+                      TextField(
+                        key: const Key('signup_password_field'),
+                        controller: _passwordController,
+                        focusNode: _passwordFocusNode,
+                        obscureText: _obscurePassword,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        decoration: _buildInputDecoration(loc.translate('enterPassword')).copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              color: Colors.grey.shade600,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                        ),
+                        onChanged: (_) => _clearError(),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // 4. Confirm Password
+                      _buildFieldLabel(loc.translate('confirmPassword'), Icons.lock_reset_rounded),
+                      const SizedBox(height: 8),
+                      TextField(
+                        key: const Key('signup_confirm_password_field'),
+                        controller: _confirmPasswordController,
+                        focusNode: _confirmPasswordFocusNode,
+                        obscureText: _obscureConfirmPassword,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        decoration: _buildInputDecoration(loc.translate('enterConfirmPassword')).copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              color: Colors.grey.shade600,
+                            ),
+                            onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                          ),
+                        ),
+                        onChanged: (_) => _clearError(),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // 5. Area / City
                       _buildFieldLabel(loc.translate('cityArea'), Icons.location_city_rounded),
                       const SizedBox(height: 8),
                       TextField(
