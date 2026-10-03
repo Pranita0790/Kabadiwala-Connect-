@@ -497,6 +497,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const Divider(height: 1, indent: 64),
 
                   _buildProfileTile(
+                    icon: Icons.account_balance_wallet_rounded,
+                    iconColor: AppColors.secondary,
+                    title: loc.translate('earnings'),
+                    subtitle: 'Earnings & transaction ledger',
+                    onTap: () => Navigator.pushNamed(context, '/earnings'),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  _buildProfileTile(
+                    icon: Icons.sell_outlined,
+                    iconColor: AppColors.clayOrange,
+                    title: 'My Rate Card',
+                    subtitle: 'Collector buying rates',
+                    onTap: () => Navigator.pushNamed(context, '/my-rate-card'),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  _buildProfileTile(
+                    icon: Icons.people_outline,
+                    iconColor: Colors.blue.shade800,
+                    title: 'My Customers',
+                    subtitle: 'Customer directory & stats',
+                    onTap: () => Navigator.pushNamed(context, '/customers'),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  _buildProfileTile(
+                    icon: Icons.inbox_outlined,
+                    iconColor: Colors.purple.shade700,
+                    title: 'Pickup Requests',
+                    subtitle: 'User pickup request workflow',
+                    onTap: () => Navigator.pushNamed(context, '/requests'),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  _buildProfileTile(
                     icon: Icons.language_rounded,
                     iconColor: Colors.blue.shade700,
                     title: loc.translate('language'),

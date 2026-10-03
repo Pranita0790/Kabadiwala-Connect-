@@ -27,6 +27,17 @@ import 'screens/recycler/recycler_matching_screen.dart';
 import 'screens/handover/handover_qr_screen.dart';
 import 'screens/safety/safety_screen.dart';
 import 'screens/notifications/notifications_screen.dart';
+import 'screens/requests/requests_screen.dart';
+import 'screens/requests/request_details_screen.dart';
+import 'screens/collection/collection_screen.dart';
+import 'screens/collection/payment_screen.dart';
+import 'screens/collection/collection_completed_screen.dart';
+import 'screens/rates/my_rate_card_screen.dart';
+import 'screens/rates/edit_rate_screen.dart';
+import 'screens/customers/customers_screen.dart';
+import 'screens/customers/customer_details_screen.dart';
+import 'models/collector_rate.dart';
+import 'models/pickup_request.dart';
 import 'models/e_waste_lot.dart';
 import 'models/recycler.dart';
 
@@ -309,6 +320,61 @@ class KabadiwalaConnectApp extends StatelessWidget {
                 return MaterialPageRoute(
                   settings: settings,
                   builder: (context) => EarningsScreen(repository: transactionRepository),
+                );
+              case '/requests':
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => const RequestsScreen(),
+                );
+              case '/request-details':
+                final reqId = settings.arguments as String;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => RequestDetailsScreen(requestId: reqId),
+                );
+              case '/collection':
+                final reqId = settings.arguments as String;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => CollectionScreen(requestId: reqId),
+                );
+              case '/payment':
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => PaymentScreen(
+                    requestId: args['requestId'] as String,
+                    actualWeightKg: (args['actualWeightKg'] as num).toDouble(),
+                    finalAmount: (args['finalAmount'] as num).toDouble(),
+                  ),
+                );
+              case '/collection-completed':
+                final req = settings.arguments as PickupRequest;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => CollectionCompletedScreen(request: req),
+                );
+              case '/my-rate-card':
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => const MyRateCardScreen(),
+                );
+              case '/edit-rate':
+                final existing = settings.arguments as CollectorRate?;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => EditRateScreen(existingRate: existing),
+                );
+              case '/customers':
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => const CustomersScreen(),
+                );
+              case '/customer-details':
+                final custId = settings.arguments as String;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => CustomerDetailsScreen(customerId: custId),
                 );
               default:
                 return MaterialPageRoute(

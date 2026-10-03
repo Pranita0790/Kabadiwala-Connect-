@@ -3,8 +3,11 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart' hide Transaction;
 import '../core/constants/app_constants.dart';
 import '../models/app_notification.dart';
+import '../models/collector_rate.dart';
+import '../models/customer.dart';
 import '../models/e_waste_lot.dart';
 import '../models/handover.dart';
+import '../models/pickup_request.dart';
 import '../models/price.dart';
 import '../models/price_alert.dart';
 import '../models/recycler.dart';
@@ -292,6 +295,69 @@ class DatabaseService {
     try {
       await db.execute('ALTER TABLE ${AppConstants.tableUsers} ADD COLUMN password_hash TEXT');
     } catch (_) {}
+
+    // 11. COLLECTOR_RATES Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${AppConstants.tableCollectorRates} (
+        id TEXT PRIMARY KEY,
+        collector_id TEXT NOT NULL,
+        material_category TEXT NOT NULL,
+        material_name TEXT NOT NULL,
+        rate_per_kg REAL NOT NULL,
+        unit TEXT NOT NULL DEFAULT 'kg',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    // 12. PICKUP_REQUESTS Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${AppConstants.tablePickupRequests} (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        user_name TEXT NOT NULL,
+        user_phone TEXT NOT NULL,
+        pickup_address TEXT NOT NULL,
+        latitude REAL,
+        longitude REAL,
+        preferred_time_slot TEXT NOT NULL,
+        material_category TEXT NOT NULL,
+        material_name TEXT NOT NULL,
+        estimated_weight_kg REAL NOT NULL,
+        rate_per_kg REAL NOT NULL,
+        photo_url TEXT,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        actual_weight_kg REAL,
+        final_amount REAL,
+        payment_method TEXT,
+        payment_status TEXT NOT NULL DEFAULT 'PENDING',
+        collector_id TEXT NOT NULL DEFAULT 'default_collector',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      )
+    ''');
+
+    // 13. CUSTOMERS Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${AppConstants.tableCustomers} (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        address TEXT NOT NULL,
+        latitude REAL,
+        longitude REAL,
+        total_pickups INTEGER NOT NULL DEFAULT 0,
+        total_weight_kg REAL NOT NULL DEFAULT 0.0,
+        total_paid REAL NOT NULL DEFAULT 0.0,
+        last_pickup_at TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await _seedDemoUserKabadiwalaData(db);
   }
 
   // ==========================================
@@ -1155,6 +1221,421 @@ class DatabaseService {
       }
     } catch (e) {
       throw DatabaseException('Failed to delete user: $id', e);
+    }
+  }
+
+  // ==========================================
+  // COLLECTOR RATES & USER KABADIWALA OPERATIONS
+  // ==========================================
+
+  static Future<void> _seedDemoUserKabadiwalaData(Database db) async {
+    // Seed rates if empty
+    final countRates = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM ${AppConstants.tableCollectorRates}'),
+    );
+    if (countRates == 0) {
+      final now = DateTime.now().toIso8601String();
+      final demoRates = [
+        {
+          'id': 'rate_1',
+          'collector_id': 'default_collector',
+          'material_category': 'E-Waste',
+          'material_name': 'Motherboards & Circuit Boards',
+          'rate_per_kg': 120.0,
+          'unit': 'kg',
+          'is_active': 1,
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'rate_2',
+          'collector_id': 'default_collector',
+          'material_category': 'E-Waste',
+          'material_name': 'Laptops & Computers',
+          'rate_per_kg': 85.0,
+          'unit': 'kg',
+          'is_active': 1,
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'rate_3',
+          'collector_id': 'default_collector',
+          'material_category': 'Metals',
+          'material_name': 'Copper Wire & Heavy Metals',
+          'rate_per_kg': 450.0,
+          'unit': 'kg',
+          'is_active': 1,
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'rate_4',
+          'collector_id': 'default_collector',
+          'material_category': 'Metals',
+          'material_name': 'Aluminum Cans & Sheet Metal',
+          'rate_per_kg': 110.0,
+          'unit': 'kg',
+          'is_active': 1,
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'rate_5',
+          'collector_id': 'default_collector',
+          'material_category': 'Batteries',
+          'material_name': 'Lithium-Ion Batteries',
+          'rate_per_kg': 150.0,
+          'unit': 'kg',
+          'is_active': 1,
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'rate_6',
+          'collector_id': 'default_collector',
+          'material_category': 'Paper',
+          'material_name': 'Cardboard & Mixed Paper',
+          'rate_per_kg': 15.0,
+          'unit': 'kg',
+          'is_active': 1,
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'rate_7',
+          'collector_id': 'default_collector',
+          'material_category': 'Plastics',
+          'material_name': 'PET Bottles & Rigid Plastic',
+          'rate_per_kg': 22.0,
+          'unit': 'kg',
+          'is_active': 1,
+          'created_at': now,
+          'updated_at': now,
+        },
+      ];
+      for (final r in demoRates) {
+        await db.insert(AppConstants.tableCollectorRates, r, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+
+    // Seed customers if empty
+    final countCust = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM ${AppConstants.tableCustomers}'),
+    );
+    if (countCust == 0) {
+      final now = DateTime.now().toIso8601String();
+      final demoCusts = [
+        {
+          'id': 'cust_1',
+          'name': 'Aniket Sharma',
+          'phone': '+91 98234 56789',
+          'address': 'Flat 402, Green Valley Apts, Kothrud, Pune',
+          'latitude': 18.5074,
+          'longitude': 73.8077,
+          'total_pickups': 3,
+          'total_weight_kg': 24.5,
+          'total_paid': 2850.0,
+          'last_pickup_at': now,
+          'created_at': now,
+        },
+        {
+          'id': 'cust_2',
+          'name': 'Priya Deshmukh',
+          'phone': '+91 98112 34567',
+          'address': 'Plot 12, Baner Pashan Link Rd, Pune',
+          'latitude': 18.5590,
+          'longitude': 73.7868,
+          'total_pickups': 1,
+          'total_weight_kg': 8.0,
+          'total_paid': 680.0,
+          'last_pickup_at': now,
+          'created_at': now,
+        },
+        {
+          'id': 'cust_3',
+          'name': 'Rahul Kulkarni',
+          'phone': '+91 97654 32109',
+          'address': 'Shop 5, FC Road Market, Shivajinagar, Pune',
+          'latitude': 18.5204,
+          'longitude': 73.8410,
+          'total_pickups': 5,
+          'total_weight_kg': 62.0,
+          'total_paid': 8400.0,
+          'last_pickup_at': now,
+          'created_at': now,
+        },
+      ];
+      for (final c in demoCusts) {
+        await db.insert(AppConstants.tableCustomers, c, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+
+    // Seed pickup requests if empty
+    final countReqs = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM ${AppConstants.tablePickupRequests}'),
+    );
+    if (countReqs == 0) {
+      final now = DateTime.now().toIso8601String();
+      final demoReqs = [
+        {
+          'id': 'req_101',
+          'user_id': 'cust_1',
+          'user_name': 'Aniket Sharma',
+          'user_phone': '+91 98234 56789',
+          'pickup_address': 'Flat 402, Green Valley Apts, Kothrud, Pune',
+          'latitude': 18.5074,
+          'longitude': 73.8077,
+          'preferred_time_slot': 'Today, 4:00 PM - 6:00 PM',
+          'material_category': 'E-Waste',
+          'material_name': 'Motherboards & Circuit Boards',
+          'estimated_weight_kg': 5.0,
+          'rate_per_kg': 120.0,
+          'photo_url': null,
+          'description': 'Old CPU circuit boards and desktop power supplies.',
+          'status': 'PENDING',
+          'actual_weight_kg': null,
+          'final_amount': null,
+          'payment_method': null,
+          'payment_status': 'PENDING',
+          'collector_id': 'default_collector',
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'req_102',
+          'user_id': 'cust_2',
+          'user_name': 'Priya Deshmukh',
+          'user_phone': '+91 98112 34567',
+          'pickup_address': 'Plot 12, Baner Pashan Link Rd, Pune',
+          'latitude': 18.5590,
+          'longitude': 73.7868,
+          'preferred_time_slot': 'Tomorrow, 10:00 AM - 12:00 PM',
+          'material_category': 'Metals',
+          'material_name': 'Copper Wire & Heavy Metals',
+          'estimated_weight_kg': 8.0,
+          'rate_per_kg': 450.0,
+          'photo_url': null,
+          'description': 'Stripped copper wire bundle from electrical renovation.',
+          'status': 'ACCEPTED',
+          'actual_weight_kg': null,
+          'final_amount': null,
+          'payment_method': null,
+          'payment_status': 'PENDING',
+          'collector_id': 'default_collector',
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'req_103',
+          'user_id': 'cust_3',
+          'user_name': 'Rahul Kulkarni',
+          'user_phone': '+91 97654 32109',
+          'pickup_address': 'Shop 5, FC Road Market, Shivajinagar, Pune',
+          'latitude': 18.5204,
+          'longitude': 73.8410,
+          'preferred_time_slot': 'Today, 2:00 PM - 4:00 PM',
+          'material_category': 'Batteries',
+          'material_name': 'Lithium-Ion Batteries',
+          'estimated_weight_kg': 12.0,
+          'rate_per_kg': 150.0,
+          'photo_url': null,
+          'description': 'Discharged UPS and mobile batteries for critical mineral recovery.',
+          'status': 'ON_MY_WAY',
+          'actual_weight_kg': null,
+          'final_amount': null,
+          'payment_method': null,
+          'payment_status': 'PENDING',
+          'collector_id': 'default_collector',
+          'created_at': now,
+          'updated_at': now,
+        },
+        {
+          'id': 'req_100',
+          'user_id': 'cust_1',
+          'user_name': 'Aniket Sharma',
+          'user_phone': '+91 98234 56789',
+          'pickup_address': 'Flat 402, Green Valley Apts, Kothrud, Pune',
+          'latitude': 18.5074,
+          'longitude': 73.8077,
+          'preferred_time_slot': 'Yesterday, 11:00 AM',
+          'material_category': 'Plastics',
+          'material_name': 'PET Bottles & Rigid Plastic',
+          'estimated_weight_kg': 10.0,
+          'rate_per_kg': 22.0,
+          'photo_url': null,
+          'description': 'Sorted PET bottles container',
+          'status': 'COMPLETED',
+          'actual_weight_kg': 11.5,
+          'final_amount': 253.0,
+          'payment_method': 'UPI',
+          'payment_status': 'PAID',
+          'collector_id': 'default_collector',
+          'created_at': now,
+          'updated_at': now,
+          'completed_at': now,
+        }
+      ];
+      for (final req in demoReqs) {
+        await db.insert(AppConstants.tablePickupRequests, req, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+  }
+
+  // --- Collector Rates CRUD ---
+  Future<List<CollectorRate>> getCollectorRates({String collectorId = 'default_collector'}) async {
+    final db = await database;
+    final maps = await db.query(
+      AppConstants.tableCollectorRates,
+      where: 'collector_id = ? AND is_active = 1',
+      whereArgs: [collectorId],
+      orderBy: 'material_category ASC, material_name ASC',
+    );
+    return maps.map((m) => CollectorRate.fromMap(m)).toList();
+  }
+
+  Future<CollectorRate?> getCollectorRateById(String id) async {
+    final db = await database;
+    final maps = await db.query(
+      AppConstants.tableCollectorRates,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return CollectorRate.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<void> insertOrUpdateCollectorRate(CollectorRate rate) async {
+    final db = await database;
+    await db.insert(
+      AppConstants.tableCollectorRates,
+      rate.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> deleteCollectorRate(String id) async {
+    final db = await database;
+    await db.update(
+      AppConstants.tableCollectorRates,
+      {'is_active': 0, 'updated_at': DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // --- Pickup Requests CRUD ---
+  Future<List<PickupRequest>> getPickupRequests({String? status}) async {
+    final db = await database;
+    final String? where = status != null && status.isNotEmpty ? 'status = ?' : null;
+    final List<dynamic>? whereArgs = status != null && status.isNotEmpty ? [status] : null;
+
+    final maps = await db.query(
+      AppConstants.tablePickupRequests,
+      where: where,
+      whereArgs: whereArgs,
+      orderBy: 'created_at DESC',
+    );
+    return maps.map((m) => PickupRequest.fromMap(m)).toList();
+  }
+
+  Future<PickupRequest?> getPickupRequestById(String id) async {
+    final db = await database;
+    final maps = await db.query(
+      AppConstants.tablePickupRequests,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return PickupRequest.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<void> insertOrUpdatePickupRequest(PickupRequest request) async {
+    final db = await database;
+    await db.insert(
+      AppConstants.tablePickupRequests,
+      request.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  // --- Customers CRUD ---
+  Future<List<Customer>> getCustomers({String? searchQuery}) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps;
+    if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+      final query = '%${searchQuery.trim()}%';
+      maps = await db.query(
+        AppConstants.tableCustomers,
+        where: 'name LIKE ? OR phone LIKE ? OR address LIKE ?',
+        whereArgs: [query, query, query],
+        orderBy: 'total_paid DESC',
+      );
+    } else {
+      maps = await db.query(
+        AppConstants.tableCustomers,
+        orderBy: 'total_paid DESC',
+      );
+    }
+    return maps.map((m) => Customer.fromMap(m)).toList();
+  }
+
+  Future<Customer?> getCustomerById(String id) async {
+    final db = await database;
+    final maps = await db.query(
+      AppConstants.tableCustomers,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return Customer.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<void> insertOrUpdateCustomer(Customer customer) async {
+    final db = await database;
+    await db.insert(
+      AppConstants.tableCustomers,
+      customer.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> updateCustomerStats({
+    required String customerId,
+    required double addedWeightKg,
+    required double addedAmountPaid,
+  }) async {
+    final db = await database;
+    final existing = await getCustomerById(customerId);
+    final now = DateTime.now().toIso8601String();
+
+    if (existing != null) {
+      final updated = existing.copyWith(
+        totalPickups: existing.totalPickups + 1,
+        totalWeightKg: existing.totalWeightKg + addedWeightKg,
+        totalPaid: existing.totalPaid + addedAmountPaid,
+        lastPickupAt: DateTime.now(),
+      );
+      await insertOrUpdateCustomer(updated);
+    } else {
+      // Create new customer record if it doesn't exist
+      final newCust = Customer(
+        id: customerId,
+        name: 'Customer ($customerId)',
+        phone: '',
+        address: 'Pickup Location',
+        totalPickups: 1,
+        totalWeightKg: addedWeightKg,
+        totalPaid: addedAmountPaid,
+        lastPickupAt: DateTime.now(),
+      );
+      await insertOrUpdateCustomer(newCust);
     }
   }
 }

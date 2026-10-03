@@ -36,7 +36,7 @@ class AppConstants {
 
   static const String logoAsset = 'assets/images/kabadiwala_connect_logo.png';
   static const String dbName = 'kabadiwala_collector.db';
-  static const int dbVersion = 2;
+  static const int dbVersion = 3;
 
   static const String tableLots = 'lots';
   static const String tableEWasteLots = 'lots';
@@ -49,6 +49,9 @@ class AppConstants {
   static const String tableNotifications = 'notifications';
   static const String tablePriceAlerts = 'price_alerts';
   static const String tableUsers = 'users';
+  static const String tableCollectorRates = 'collector_rates';
+  static const String tablePickupRequests = 'pickup_requests';
+  static const String tableCustomers = 'customers';
 
   // Sync States
   static const String syncPending = 'PENDING_SYNC';

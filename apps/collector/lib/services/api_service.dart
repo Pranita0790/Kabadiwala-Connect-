@@ -1018,4 +1018,40 @@ class RemoteApiService implements ApiService {
       return await _mock.uploadPriceAlert(alert);
     }
   }
+
+  Future<ApiResponse<List<Map<String, dynamic>>>> fetchPickupRequests() async {
+    try {
+      final uri = Uri.parse('$baseUrl/pickup-requests');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        final rawList = body['data']?['requests'] ?? [];
+        if (rawList is List) {
+          final list = rawList.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+          return ApiResponse.success(list, statusCode: 200);
+        }
+      }
+      return ApiResponse.failure('Failed to fetch pickup requests');
+    } catch (e) {
+      return ApiResponse.failure('Network error: $e');
+    }
+  }
+
+  Future<ApiResponse<List<Map<String, dynamic>>>> fetchCollectorRates() async {
+    try {
+      final uri = Uri.parse('$baseUrl/collector-rates');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        final rawList = body['data']?['rates'] ?? [];
+        if (rawList is List) {
+          final list = rawList.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+          return ApiResponse.success(list, statusCode: 200);
+        }
+      }
+      return ApiResponse.failure('Failed to fetch collector rates');
+    } catch (e) {
+      return ApiResponse.failure('Network error: $e');
+    }
+  }
 }

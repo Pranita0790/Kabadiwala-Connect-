@@ -51,6 +51,8 @@ const transactionsRoutes = require("./modules/transactions/transactions.routes")
 const traceabilityRoutes = require("./modules/traceability/traceability.routes");
 const notificationsRoutes = require("./modules/notifications/notifications.routes");
 const priceAlertsRoutes = require("./modules/price-alerts/price-alerts.routes");
+const pickupRequestsRoutes = require("./modules/pickup-requests/pickup-requests.routes");
+const collectorRatesRoutes = require("./modules/collector-rates/collector-rates.routes");
 const aiRoutes = require("./modules/ai/ai.routes");
 
 const app = express();
@@ -102,6 +104,8 @@ app.get("/", (req, res) => {
         traceability: "/api/traceability",
         notifications: "/api/notifications",
         priceAlerts: "/api/price-alerts",
+        pickupRequests: "/api/pickup-requests",
+        collectorRates: "/api/collector-rates",
       },
     },
   });
@@ -148,6 +152,8 @@ app.use("/api/transactions", requireDatabase, transactionsRoutes);
 app.use("/api/traceability", requireDatabase, traceabilityRoutes);
 app.use("/api/notifications", requireDatabase, notificationsRoutes);
 app.use("/api/price-alerts", requireDatabase, priceAlertsRoutes);
+app.use("/api/pickup-requests", pickupRequestsRoutes);
+app.use("/api/collector-rates", collectorRatesRoutes);
 
 /*
 |--------------------------------------------------------------------------

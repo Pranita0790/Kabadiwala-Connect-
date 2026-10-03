@@ -694,6 +694,39 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () => Navigator.pop(context),
                   ),
                   ListTile(
+                    leading: const Icon(Icons.inbox_outlined, color: AppColors.textPrimary),
+                    title: const Text('Pickup Requests'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.pushNamed(context, '/requests');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.sell_outlined, color: AppColors.textPrimary),
+                    title: const Text('My Rate Card'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.pushNamed(context, '/my-rate-card');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.people_outline, color: AppColors.textPrimary),
+                    title: const Text('My Customers'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.pushNamed(context, '/customers');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.textPrimary),
+                    title: Text(loc.translate('earnings')),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.pushNamed(context, '/earnings');
+                      _loadEarnings();
+                    },
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.inventory_2_rounded, color: AppColors.textPrimary),
                     title: Text(loc.translate('myLots')),
                     onTap: () async {
@@ -709,15 +742,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/recyclers');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.textPrimary),
-                    title: Text(loc.translate('earnings')),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      await Navigator.pushNamed(context, '/earnings');
-                      _loadEarnings();
                     },
                   ),
                   ListTile(
@@ -1135,19 +1159,23 @@ class _HomeScreenState extends State<HomeScreen> {
               // Home - already on home
               break;
             case 1:
+              // Requests
+              await Navigator.pushNamed(context, '/requests');
+              _loadLots();
+              break;
+            case 2:
               // Lots
               await Navigator.pushNamed(context, '/create-lot');
               _loadLots();
               _loadEarnings();
               break;
-            case 2:
-              // Recyclers
-              Navigator.pushNamed(context, '/recyclers');
-              break;
             case 3:
-              // Earnings
-              await Navigator.pushNamed(context, '/earnings');
-              _loadEarnings();
+              // Customers
+              await Navigator.pushNamed(context, '/customers');
+              break;
+            case 4:
+              // Profile
+              await Navigator.pushNamed(context, '/profile');
               break;
           }
         },
@@ -1156,17 +1184,25 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.home_rounded),
             label: loc.translate('home'),
           ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.inbox_outlined),
+            activeIcon: Icon(Icons.inbox_rounded),
+            label: 'Requests',
+          ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.inventory_2_rounded),
+            icon: const Icon(Icons.inventory_2_outlined),
+            activeIcon: const Icon(Icons.inventory_2_rounded),
             label: loc.translate('lots'),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.recycling_rounded),
-            label: loc.translate('recyclers'),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.people_outline),
+            activeIcon: Icon(Icons.people_rounded),
+            label: 'Customers',
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.account_balance_wallet_rounded),
-            label: loc.translate('earnings'),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person_rounded),
+            label: 'Profile',
           ),
         ],
       ),
