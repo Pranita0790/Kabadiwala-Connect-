@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class FindKabadiwalaScreen extends StatefulWidget {
-  final String title = 'Find Kabadiwala';
+  final String title;
 
-  const FindKabadiwalaScreen({super.key, required this.title});
+  const FindKabadiwalaScreen({super.key, this.title = 'Find Kabadiwala'});
 
   @override
   State<FindKabadiwalaScreen> createState() => _FindKabadiwalaScreenState();

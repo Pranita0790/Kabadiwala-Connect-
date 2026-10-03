@@ -75,7 +75,7 @@ class KabadiwalaConnectUserApp extends StatelessWidget {
           locale: controller.currentLocale,
           supportedLocales: controller.supportedLocales,
           localizationsDelegates: const [
-            AppLocalizations.delegate,
+            AppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
@@ -103,12 +103,8 @@ class KabadiwalaConnectUserApp extends StatelessWidget {
                 ),
             '/profile': (context) => ProfileScreen(
                   onLanguageChanged: controller.setLocale,
-                  currentLocale: controller.currentLocale,
                 ),
-            '/profile/edit': (context) => EditProfileScreen(
-                  onLanguageChanged: controller.setLocale,
-                  currentLocale: controller.currentLocale,
-                ),
+            '/profile/edit': (context) => const EditProfileScreen(),
             '/kabadiwala/find': (context) => const FindKabadiwalaScreen(),
             '/kabadiwala/nearby': (context) => const NearbyVendorsScreen(),
             '/kabadiwala/vendor/:id': (context) => const VendorDetailsScreen(),

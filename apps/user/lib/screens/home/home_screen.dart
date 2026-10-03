@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/auth/auth_controller.dart';
 import '../../widgets/kabadiwala_logo.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -19,14 +18,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late final AuthController _authController;
-
-  @override
-  void initState() {
-    super.initState();
-    _authController = AuthController.instance;
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -72,9 +63,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Sell your scrap easily. Connect with nearby Kabadiwalas.',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
                 ),
@@ -146,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(

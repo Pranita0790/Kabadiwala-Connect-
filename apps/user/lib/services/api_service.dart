@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../core/constants/app_constants.dart';
 import '../models/app_notification.dart';
 import '../models/e_waste_lot.dart';

@@ -52,6 +52,10 @@ class LocaleController extends ChangeNotifier {
   String get currentLanguageCode => _locale.languageCode;
   bool get isInitialized => _isInitialized;
 
+  /// Locales exposed to `MaterialApp.supportedLocales`.
+  List<Locale> get supportedLocales =>
+      supportedLanguages.map((language) => Locale(language.code)).toList();
+
   /// Loads the persisted language preference from local SQLite storage
   Future<void> initialize() async {
     if (_isInitialized) return;
