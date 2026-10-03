@@ -89,6 +89,9 @@ function toLotDto(row, { legacyAliases = true } = {}) {
     // The PUBLIC identifier. This is what appears in URLs and in API
     // responses; the internal primary key is never exposed.
     id: row.public_id,
+    // Offline collector UUID — handover PIN is derived from this on the phone.
+    clientReference: row.client_reference || null,
+    client_reference: row.client_reference || null,
     lotNumber: row.lot_number,
     lot_number: row.lot_number,
 

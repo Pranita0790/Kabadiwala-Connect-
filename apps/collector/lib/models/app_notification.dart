@@ -64,18 +64,47 @@ class AppNotification {
   }
 
   factory AppNotification.fromMap(Map<String, dynamic> map) {
+    final title = map['title'];
+    final body = map['body'];
+    String pick(dynamic nested, String lang, List<String> keys, String fallback) {
+      if (nested is Map && nested[lang] != null) {
+        return nested[lang].toString();
+      }
+      for (final key in keys) {
+        final value = map[key];
+        if (value != null && value.toString().isNotEmpty) {
+          return value.toString();
+        }
+      }
+      return fallback;
+    }
+
+    final timestampRaw =
+        map['timestamp'] ?? map['createdAt'] ?? map['created_at'];
+    DateTime timestamp = DateTime.now();
+    if (timestampRaw is String) {
+      timestamp = DateTime.tryParse(timestampRaw) ?? timestamp;
+    } else if (timestampRaw is DateTime) {
+      timestamp = timestampRaw;
+    }
+
+    final type = (map['type'] as String?) ?? AppConstants.notificationHandover;
+
     return AppNotification(
-      id: map['id'] as String,
-      titleEn: map['title_en'] as String? ?? 'Notification',
-      titleHi: map['title_hi'] as String? ?? 'सूचना',
-      titleMr: map['title_mr'] as String? ?? 'सूचना',
-      bodyEn: map['body_en'] as String? ?? '',
-      bodyHi: map['body_hi'] as String? ?? '',
-      bodyMr: map['body_mr'] as String? ?? '',
-      type: map['type'] as String? ?? AppConstants.notificationHandover,
-      relatedId: map['related_id'] as String?,
-      timestamp: DateTime.parse(map['timestamp'] as String),
-      isRead: (map['is_read'] == 1 || map['is_read'] == true),
+      id: (map['id'] ?? map['public_id'] ?? '').toString(),
+      titleEn: pick(title, 'en', ['titleEn', 'title_en'], 'Notification'),
+      titleHi: pick(title, 'hi', ['titleHi', 'title_hi'], 'सूचना'),
+      titleMr: pick(title, 'mr', ['titleMr', 'title_mr'], 'सूचना'),
+      bodyEn: pick(body, 'en', ['bodyEn', 'body_en'], ''),
+      bodyHi: pick(body, 'hi', ['bodyHi', 'body_hi'], ''),
+      bodyMr: pick(body, 'mr', ['bodyMr', 'body_mr'], ''),
+      type: type,
+      relatedId: (map['related_id'] ?? map['relatedId'] ?? map['lotId'])
+          ?.toString(),
+      timestamp: timestamp,
+      isRead: (map['is_read'] == 1 ||
+          map['is_read'] == true ||
+          map['isRead'] == true),
       isDemo: (map['is_demo'] == 1 || map['is_demo'] == true),
     );
   }

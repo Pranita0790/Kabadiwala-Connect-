@@ -282,6 +282,8 @@ export type BackendLot = {
   id: string;
   lotNumber?: string;
   lot_number?: string;
+  clientReference?: string | null;
+  client_reference?: string | null;
   material?: string;
   materialId?: string;
   categoryName?: string;
@@ -309,6 +311,7 @@ export function mapBackendLotToUi(lot: BackendLot) {
   return {
     id: lot.lotNumber || lot.lot_number || lot.id,
     publicId: lot.id,
+    clientReference: lot.clientReference || lot.client_reference || null,
     material:
       lot.categoryName ||
       lot.material ||
@@ -390,8 +393,29 @@ export async function fetchMyTransactions() {
   );
 }
 
-export async function confirmHandover(handoverId: string) {
-  return apiFetch(`/handovers/${encodeURIComponent(handoverId)}/confirm`, {
+export async function confirmHandover(
+  handoverId: string,
+  body: {
+    completeBoth?: boolean;
+    paymentMethod?: string;
+    finalAmount?: number;
+  } = {}
+) {
+  const result = await apiFetch(`/handovers/${encodeURIComponent(handoverId)}/confirm`, {
     method: "POST",
+    body: JSON.stringify({
+      completeBoth: body.completeBoth ?? true,
+      paymentMethod: body.paymentMethod,
+      finalAmount: body.finalAmount,
+    }),
   });
+
+  if (!result.ok) {
+    const message =
+      (result.data as { message?: string })?.message ||
+      "Could not confirm handover on the server.";
+    throw new Error(message);
+  }
+
+  return result;
 }

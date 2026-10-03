@@ -212,6 +212,9 @@ const config = {
     // Circuit breaker: stop calling a failing AI service for a cool-down window.
     breakerThreshold: toInt("AI_BREAKER_THRESHOLD", 5),
     breakerCooldownMs: toInt("AI_BREAKER_COOLDOWN_MS", 30_000),
+    // Backend-only. Never put this in Flutter dart-define.
+    geminiApiKey: optional("GEMINI_API_KEY", null),
+    geminiModel: optional("GEMINI_MODEL", "gemini-2.0-flash"),
   },
 
   uploads: {
@@ -237,6 +240,16 @@ const config = {
   pagination: {
     defaultLimit: toInt("PAGINATION_DEFAULT_LIMIT", 25),
     maxLimit: toInt("PAGINATION_MAX_LIMIT", 100),
+  },
+
+  /*
+   | Razorpay Checkout Key Id is client-safe (Test Mode). Never expose
+   | RAZORPAY_KEY_SECRET to Flutter — keep it backend-only for order APIs.
+   */
+  razorpay: {
+    keyId: optional("RAZORPAY_KEY_ID", null),
+    // Secret stays server-side only; not returned by any public user route.
+    keySecret: optional("RAZORPAY_KEY_SECRET", null),
   },
 
   paths: {

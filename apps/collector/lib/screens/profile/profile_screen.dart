@@ -9,6 +9,7 @@ import '../../models/user_profile.dart';
 import '../../repositories/lot_repository.dart';
 import '../../repositories/transaction_repository.dart';
 import '../../widgets/kabadiwala_logo.dart';
+import '../../services/backend_url.dart';
 
 /// Clean, high-contrast Profile Screen designed for informal scrap collectors.
 /// Shows user info, language switch, notifications, safety, helpline, and logout.
@@ -516,6 +517,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const Divider(height: 1, indent: 64),
 
                   _buildProfileTile(
+                    icon: Icons.assignment_rounded,
+                    iconColor: Colors.deepOrange.shade700,
+                    title: 'Pickup Requests',
+                    subtitle: 'Customer pickups and collection',
+                    onTap: () => Navigator.pushNamed(context, '/requests'),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  _buildProfileTile(
+                    icon: Icons.people_alt_rounded,
+                    iconColor: Colors.brown.shade600,
+                    title: 'Customers',
+                    subtitle: 'Pickup history and amounts paid',
+                    onTap: () => Navigator.pushNamed(context, '/customers'),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  _buildProfileTile(
+                    icon: Icons.sell_rounded,
+                    iconColor: Colors.orange.shade800,
+                    title: 'My Rate Card',
+                    subtitle: 'Your collector rates for customers',
+                    onTap: () => Navigator.pushNamed(context, '/my-rate-card'),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  _buildProfileTile(
                     icon: Icons.health_and_safety_rounded,
                     iconColor: Colors.teal.shade700,
                     title: loc.translate('safety'),
@@ -530,6 +558,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: loc.translate('helpSupport'),
                     subtitle: 'Toll-free collector helpline',
                     onTap: () => _showHelpSupportDialog(context, loc),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  _buildProfileTile(
+                    icon: Icons.dns_rounded,
+                    iconColor: Colors.blueGrey.shade700,
+                    title: loc.translate('laptopServer'),
+                    subtitle: BackendUrl.displayUrl,
+                    onTap: () => _showServerUrlDialog(context, loc),
                   ),
                   const Divider(height: 1, indent: 64),
 
@@ -559,6 +596,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showServerUrlDialog(BuildContext context, AppLocalizations loc) async {
+    final controller = TextEditingController(text: BackendUrl.displayUrl);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(loc.translate('laptopServer')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(loc.translate('laptopServerHint')),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                hintText: 'http://10.1.106.69:5000',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(loc.translate('cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(loc.translate('save')),
+          ),
+        ],
+      ),
+    );
+    if (saved == true && controller.text.trim().isNotEmpty) {
+      await BackendUrl.saveOverride(controller.text);
+      if (!context.mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(loc.translate('laptopServerSaved'))),
+      );
+    }
   }
 
   Widget _buildProfileTile({

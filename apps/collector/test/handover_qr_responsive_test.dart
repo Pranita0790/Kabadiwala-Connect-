@@ -78,7 +78,7 @@ void main() {
   }
 
   group('HandoverQrScreen Responsive & Simulation Verification Tests', () {
-    testWidgets('1. Content is fully visible, DEMO TEST TRIGGER is padded, and Simulate Recycler is visible', (tester) async {
+    testWidgets('1. Content is fully visible, PIN is shown, and demo trigger is absent', (tester) async {
       tester.view.physicalSize = const Size(1080, 2200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -119,9 +119,9 @@ void main() {
       expect(find.text('5.0 kg'), findsOneWidget);
       expect(find.text('₹1600'), findsOneWidget);
 
-      // Verify DEMO TEST TRIGGER section & Simulate button
-      expect(find.text('DEMO TEST TRIGGER'), findsOneWidget);
-      expect(find.text('Simulate Recycler Confirmation (Demo)'), findsOneWidget);
+      expect(find.text('DEMO TEST TRIGGER'), findsNothing);
+      expect(find.text('Simulate Recycler Confirmation (Demo)'), findsNothing);
+      expect(find.text('Send lot to website'), findsOneWidget);
     });
 
     testWidgets('2. Screen scrolls and fits naturally without overflow on small mobile viewport', (tester) async {
@@ -150,20 +150,18 @@ void main() {
       await tester.pumpWidget(buildTestWidget(initialHandover: testHandover));
       await tester.pumpAndSettle();
 
-      // Scroll to bottom to view simulation trigger
       await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -300));
       await tester.pumpAndSettle();
 
-      expect(find.text('DEMO TEST TRIGGER'), findsOneWidget);
-      expect(find.text('Simulate Recycler Confirmation (Demo)'), findsOneWidget);
+      expect(find.text('DEMO TEST TRIGGER'), findsNothing);
+      expect(find.text('Send lot to website'), findsOneWidget);
     });
 
-    testWidgets('3. Tapping Simulate Recycler confirms handover and switches to confirmed view', (tester) async {
+    testWidgets('3. Pending PIN screen waits for website and does not confirm locally', (tester) async {
       tester.view.physicalSize = const Size(1080, 2200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
-      // Create test lot & handover
       final testHandover = Handover(
         id: 'handover_test_003',
         lotId: 'lot_test_003',
@@ -188,20 +186,10 @@ void main() {
       await tester.pumpWidget(buildTestWidget(initialHandover: testHandover));
       await tester.pumpAndSettle();
 
-      // Tap Simulate Recycler button
-      final simulateBtn = find.text('Simulate Recycler Confirmation (Demo)');
-      await tester.ensureVisible(simulateBtn);
-
-      await tester.runAsync(() async {
-        await tester.tap(simulateBtn);
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      });
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      // Status should update to Handover Confirmed and show View in Ledger button
-      expect(find.text('Handover Confirmed'), findsWidgets);
-      expect(find.text('View in Earnings Ledger'), findsWidgets);
+      expect(find.text('Waiting for Recycler Confirmation'), findsOneWidget);
+      expect(find.text('Send lot to website'), findsOneWidget);
+      expect(find.text('Simulate Recycler Confirmation (Demo)'), findsNothing);
+      expect(find.text('Handover Confirmed'), findsNothing);
     });
 
     testWidgets('4. Payment method chips Cash and UPI are available on PIN screen', (tester) async {

@@ -11,6 +11,7 @@ import '../../models/recycler.dart';
 import '../../repositories/handover_repository.dart';
 import '../../repositories/lot_repository.dart';
 import '../../repositories/transaction_repository.dart';
+import '../../services/database_service.dart';
 import '../../services/notification_service.dart';
 import '../earnings/earnings_screen.dart';
 
@@ -78,10 +79,10 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
     if (widget.initialHandover != null) {
       _handover = widget.initialHandover;
       _isLoading = false;
+      _startPaymentPoll();
     } else {
       _initializeHandover();
     }
-    _startPaymentPoll();
   }
 
   @override
@@ -93,33 +94,84 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
 
   void _startPaymentPoll() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+    unawaited(_checkRemotePayment());
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       unawaited(_checkRemotePayment());
     });
   }
 
   Future<void> _checkRemotePayment() async {
     final lotId = widget.lot?.id ?? _handover?.lotId;
-    if (lotId == null || _paymentReceived || !mounted) return;
+    final handover = _handover;
+    if (lotId == null ||
+        handover == null ||
+        _paymentReceived ||
+        !mounted ||
+        handover.status == AppConstants.handoverConfirmed) {
+      return;
+    }
     try {
+      await NotificationService.instance.pullFromBackend();
+
+      // Only treat PAID rows created AFTER this handover as website confirmation.
       final repo = widget.transactionRepository ?? TransactionRepository();
       final ledger = await repo.fetchTransactions(forceRefresh: true);
+      final handoverStarted = handover.createdAt.subtract(const Duration(seconds: 5));
       final paid = ledger.transactions.where((tx) {
-        final sameLot = tx.lotId == lotId;
+        final sameLot = tx.lotId == lotId ||
+            tx.lotId == handover.lotId ||
+            tx.lotId == handover.id;
         final status = tx.paymentStatus.toUpperCase();
-        return sameLot && (status == 'PAID' || status == 'RECEIVED');
-      });
-      if (paid.isEmpty || !mounted) return;
-      final tx = paid.first;
+        final isPaid = status == 'PAID' || status == 'RECEIVED';
+        final afterHandover = !tx.createdAt.isBefore(handoverStarted);
+        return sameLot && isPaid && afterHandover;
+      }).toList();
+
+      // Backend payment inbox (HANDOVER_CONFIRMED / Payment received).
+      final notes = await NotificationService.instance.getNotifications();
+      final paidNote = notes.where((n) {
+        if (n.isDemo) return false;
+        final type = n.type.toUpperCase();
+        final body = '${n.titleEn} ${n.bodyEn}'.toLowerCase();
+        final isPayNote = type == AppConstants.notificationHandover ||
+            type.contains('HANDOVER') ||
+            body.contains('payment received') ||
+            body.contains('paid');
+        if (!isPayNote) return false;
+        final related = n.relatedId ?? '';
+        final matchesLot = related.isEmpty ||
+            related == lotId ||
+            related == handover.id ||
+            related == handover.lotId ||
+            body.contains(lotId.toLowerCase());
+        final afterHandover = !n.timestamp.isBefore(handoverStarted);
+        return matchesLot && afterHandover;
+      }).toList();
+
+      if ((paid.isEmpty && paidNote.isEmpty) || !mounted) return;
+      final amount = paid.isNotEmpty
+          ? paid.first.finalPrice
+          : handover.agreedPrice;
+
+      // Ledger rows come from GET /transactions/my (already saved above).
+      // Mark local handover confirmed so this screen stops waiting.
+      try {
+        await DatabaseService.instance.updateHandoverStatus(
+          handover.id,
+          AppConstants.handoverConfirmed,
+          confirmedAt: DateTime.now(),
+        );
+      } catch (_) {}
+
       await NotificationService.instance.notifyRecyclerPayment(
         recyclerName: _activeRecycler.name,
-        amount: tx.finalPrice,
+        amount: amount,
         lotId: lotId,
       );
       if (!mounted) return;
       setState(() {
         _paymentReceived = true;
-        _receiptAmount = tx.finalPrice;
+        _receiptAmount = amount;
         _handover = _handover?.copyWith(status: AppConstants.handoverConfirmed);
       });
     } catch (_) {}
@@ -154,71 +206,32 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
         _handover = handover;
         _isLoading = false;
       });
+      _startPaymentPoll();
     }
   }
 
-  Future<void> _simulateConfirmation() async {
+  Future<void> _retrySendToWebsite() async {
     if (_handover == null || _isConfirming) return;
-
     setState(() => _isConfirming = true);
-
-    try {
-      final status = _paymentMethod == 'CASH' ? 'PAID' : _paymentStatus;
-      final updated = await _handoverRepo.confirmHandover(
-        _handover!.id,
-        finalAmount: _handover!.agreedPrice,
-        paymentStatus: status,
-      );
-
-      if (mounted) {
-        setState(() {
-          _handover = updated;
-          _isConfirming = false;
-          _paymentReceived = true;
-          _receiptAmount = updated.agreedPrice;
-        });
-        unawaited(NotificationService.instance.notifyRecyclerPayment(
-          recyclerName: _activeRecycler.name,
-          amount: updated.agreedPrice,
-          lotId: updated.lotId,
-        ));
-
-        final loc = AppLocalizations.of(context);
-        final remoteFailed = updated.syncStatus == AppConstants.syncFailed;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              remoteFailed
-                  ? loc.translate('handoverRemoteFailed')
-                  : loc.translate('handoverConfirmed'),
-            ),
-            backgroundColor: remoteFailed ? Colors.orange.shade800 : AppColors.primary,
-            action: SnackBarAction(
-              label: loc.translate('viewInLedger'),
-              textColor: Colors.white,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const EarningsScreen()),
-                );
-              },
-            ),
-          ),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isConfirming = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).translate('handoverRemoteFailed'),
-            ),
-            backgroundColor: Colors.orange.shade800,
-          ),
-        );
-      }
-    }
+    final updated = await _handoverRepo.pushToWebsite(
+      _handover!,
+      lot: widget.lot,
+    );
+    if (!mounted) return;
+    setState(() {
+      _handover = updated;
+      _isConfirming = false;
+    });
+    final loc = AppLocalizations.of(context);
+    final ok = updated.syncStatus == AppConstants.syncSynced;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? loc.translate('lotOnWebsite') : loc.translate('handoverRemoteFailed'),
+        ),
+        backgroundColor: ok ? AppColors.syncSuccess : Colors.orange.shade800,
+      ),
+    );
   }
 
   void _copyPin(String pin, AppLocalizations loc) {
@@ -730,82 +743,43 @@ class _HandoverQrScreenState extends State<HandoverQrScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        _buildDemoTrigger(loc),
-      ],
-    );
-  }
-
-  Widget _buildDemoTrigger(AppLocalizations loc) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.shade400, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.amber.shade200.withValues(alpha: 0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.bolt_rounded, size: 18, color: Colors.amber.shade900),
-              const SizedBox(width: 6),
-              Text(
-                'DEMO TEST TRIGGER',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                  color: Colors.amber.shade900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+        if (_handover?.syncStatus == AppConstants.syncSynced)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              loc.translate('lotOnWebsite'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+          )
+        else
           SizedBox(
-            width: double.infinity,
-            height: 54,
+            height: 52,
             child: ElevatedButton.icon(
-              onPressed: _isConfirming ? null : _simulateConfirmation,
+              onPressed: _isConfirming ? null : _retrySendToWebsite,
               icon: _isConfirming
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Colors.white,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                     )
-                  : const Icon(Icons.check_circle_outline_rounded, size: 22),
+                  : const Icon(Icons.cloud_upload_rounded),
               label: Text(
-                loc.translate('confirmHandoverDemo'),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                loc.translate('sendLotToWebsite'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.secondary,
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
-                elevation: 2,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 

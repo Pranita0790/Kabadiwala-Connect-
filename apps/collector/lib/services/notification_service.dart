@@ -48,6 +48,18 @@ class NotificationService {
     return _dbService.getNotifications();
   }
 
+  Future<void> pullFromBackend() async {
+    try {
+      final response = await _apiService.fetchNotifications();
+      if (!response.success || response.data == null) return;
+      for (final item in response.data!) {
+        if (item.id.isEmpty || item.isDemo) continue;
+        await _dbService.insertNotification(item.copyWith(isDemo: false));
+      }
+      await refreshNotifications();
+    } catch (_) {}
+  }
+
   Future<int> getUnreadCount() async {
     return _dbService.getUnreadNotificationCount();
   }
@@ -257,6 +269,28 @@ class NotificationService {
       timestamp: DateTime.now(),
       isRead: false,
       isDemo: true,
+    );
+    await _dbService.insertNotification(notif);
+    await refreshNotifications();
+  }
+
+  Future<void> notifyRegularCustomer({
+    required String customerName,
+    required String customerId,
+  }) async {
+    final notif = AppNotification(
+      id: 'notif_reg_${customerId}_${DateTime.now().millisecondsSinceEpoch}',
+      titleEn: 'Regular customer',
+      titleHi: 'रेगुलर ग्राहक',
+      titleMr: 'नियमित ग्राहक',
+      bodyEn: '$customerName is now your regular customer (5+ pickups).',
+      bodyHi: '$customerName अब आपके रेगुलर ग्राहक बन गए हैं (5+ पिकअप)।',
+      bodyMr: '$customerName आता तुमचे नियमित ग्राहक आहेत (5+ पिकअप).',
+      type: AppConstants.notificationSystem,
+      relatedId: customerId,
+      timestamp: DateTime.now(),
+      isRead: false,
+      isDemo: false,
     );
     await _dbService.insertNotification(notif);
     await refreshNotifications();

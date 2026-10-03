@@ -9,6 +9,8 @@ const repository = require("./handovers.repository");
 const transactionsRepository = require("../transactions/transactions.repository");
 const lotsRepository = require("../lots/lots.repository");
 const lotsService = require("../lots/lots.service");
+const notificationService = require("../notifications/notifications.service");
+const recyclersRepository = require("../recyclers/recyclers.repository");
 const {
   ValidationError,
   NotFoundError,
@@ -20,6 +22,10 @@ function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     String(value || "")
   );
+}
+
+function actorName(user) {
+  return user?.fullName || user?.organisationName || "The recycler";
 }
 
 async function ensureLotForHandover(input, user, lotIdentifier) {
@@ -84,29 +90,53 @@ async function assignRecyclerToLot(lot, recyclerId) {
 }
 
 async function advanceLotTowardHandover(lot, user) {
-  // Status machine: PENDING -> ACCEPTED -> HANDOVER (no skipping).
+  // Collector app starts PIN handover → lot must land in Verification
+  // (Accepted/Handover). Collectors cannot call changeStatus for those
+  // transitions, so the handover sync path updates the lot row directly
+  // after the handover record exists.
   let current = lot;
   try {
-    if (current.status === lotStatus.PENDING) {
-      const accepted = await lotsService.changeStatus(
-        current.id,
-        lotStatus.ACCEPTED,
-        user,
-        { note: "Auto-accepted for handover sync" }
-      );
-      current = accepted?.lot || current;
+    if (
+      user.role === userRole.RECYCLER ||
+      user.role === userRole.ADMIN
+    ) {
+      if (current.status === lotStatus.PENDING) {
+        const accepted = await lotsService.changeStatus(
+          current.id,
+          lotStatus.ACCEPTED,
+          user,
+          { note: "Auto-accepted for handover sync" }
+        );
+        current = accepted?.lot || current;
+      }
+      const fresh = await lotsRepository.findByAnyIdentifier(current.id);
+      current = fresh || current;
+      if (current.status === lotStatus.ACCEPTED) {
+        await lotsService.changeStatus(current.id, lotStatus.HANDOVER, user, {
+          note: "Handover created",
+        });
+      }
+      return;
     }
-  } catch {
-    // May already be accepted / claimed by another path.
-  }
 
-  try {
-    const fresh = await lotsRepository.findByAnyIdentifier(current.id);
-    current = fresh || current;
-    if (current.status === lotStatus.ACCEPTED) {
-      await lotsService.changeStatus(current.id, lotStatus.HANDOVER, user, {
-        note: "Handover created",
-      });
+    // Collector PIN sync: put the lot on the recycler Verification queue.
+    // Re-open COMPLETED lots too — collectors often re-send the same lot after
+    // an earlier demo/auto-confirm, and Verification only lists Handover/Accepted.
+    if (
+      current.status === lotStatus.PENDING ||
+      current.status === lotStatus.ACCEPTED ||
+      current.status === lotStatus.COMPLETED ||
+      current.status === lotStatus.HANDOVER
+    ) {
+      const patch = {
+        status: lotStatus.HANDOVER,
+        recyclerId: current.recyclerId || null,
+      };
+      if (current.status === lotStatus.COMPLETED) {
+        patch.completedAt = null;
+      }
+      const { lot: updated } = await lotsRepository.update(current.internalId, patch);
+      current = updated || current;
     }
   } catch {
     // Handover row still exists even if status transition is refused.
@@ -132,11 +162,28 @@ async function create(input, user) {
   if (user.role === userRole.RECYCLER && user.recyclerId) {
     recyclerId = user.recyclerId;
   } else if (input.recyclerId || input.recycler_id) {
-    // Collector may pass a recycler profile id when known; otherwise leave null
-    // until a recycler confirms.
-    const candidate = input.recyclerId || input.recycler_id;
+    // Collector may pass a recycler profile UUID, or a demo/local id / org name.
+    const candidate = String(input.recyclerId || input.recycler_id || "").trim();
     if (isUuid(candidate)) {
       recyclerId = recyclerId || candidate;
+    } else if (candidate) {
+      const byName =
+        (await recyclersRepository.findIdByOrganisationName(candidate)) ||
+        (await recyclersRepository.findIdByOrganisationName(
+          input.recyclerName || input.recycler_name || ""
+        ));
+      if (byName) {
+        recyclerId = recyclerId || byName;
+      }
+    }
+  }
+
+  if (!recyclerId && (input.recyclerName || input.recycler_name)) {
+    const byName = await recyclersRepository.findIdByOrganisationName(
+      input.recyclerName || input.recycler_name
+    );
+    if (byName) {
+      recyclerId = byName;
     }
   }
 
@@ -163,15 +210,24 @@ async function create(input, user) {
     qrToken: input.qrPayload || input.qr_payload || clientReference,
   });
 
-  if (created) {
-    await advanceLotTowardHandover(lot, user);
-  }
+  // Always refresh lot status (including re-uploads of the same handover).
+  await advanceLotTowardHandover(lot, user);
 
   return { handover, created };
 }
 
 async function confirm(handoverId, user, options = {}) {
-  const raw = await repository.findRawByPublicId(handoverId);
+  let raw = await repository.findRawByPublicId(handoverId);
+  if (!raw) {
+    const lotForId = await lotsRepository.findByAnyIdentifier(handoverId);
+    if (lotForId) {
+      raw = await repository.findRawLatestByLotInternalId(lotForId.internalId);
+      if (!raw) {
+        const created = await create({ lotId: lotForId.id }, user);
+        raw = await repository.findRawByPublicId(created.handover.id);
+      }
+    }
+  }
   if (!raw) {
     throw new NotFoundError(`Handover "${handoverId}" not found`);
   }
@@ -192,21 +248,22 @@ async function confirm(handoverId, user, options = {}) {
     throw new AuthorizationError("You cannot confirm this handover");
   }
 
-  // Demo / single-device confirm stamps both sides so a transactions row is
-  // created without a second actor. Allowed for the lot owner, assigned
-  // recycler, or admin (collector app often uses the ORG recycler JWT).
+  // Only recycler/admin may stamp both sides (website pay+verify).
+  // Collectors must never auto-complete — that hid lots from Verification.
   const completeBoth =
     Boolean(options.completeBoth || options.demoComplete) &&
-    (isCollector || isRecycler || isAdmin);
+    (isRecycler || isAdmin);
 
-  // Dual confirmation: each party stamps their side; admin / demo stamps both.
   const handover = await repository.markConfirmed(raw.id, {
     byCollector: isCollector || isAdmin || completeBoth,
     byRecycler: isRecycler || isAdmin || completeBoth,
   });
 
   if (handover?.status === "CONFIRMED") {
-    const amount = Number(handover.agreedAmount || lot.estimatedValue || 0);
+    const fromBody = Number(options.finalAmount);
+    const amount = Number.isFinite(fromBody) && fromBody > 0
+      ? fromBody
+      : Number(lot.estimatedValue || handover.agreedAmount || 0);
 
     await transactionsRepository.createFromHandover({
       lotInternalId: lot.internalId,
@@ -220,6 +277,22 @@ async function confirm(handoverId, user, options = {}) {
       paymentStatus: "PAID",
       handoverStatus: "CONFIRMED",
     });
+
+    try {
+      await notificationService.create({
+        userId: lot.collectorId,
+        lotId: lot.internalId,
+        type: "HANDOVER_CONFIRMED",
+        titleEn: "Payment received",
+        bodyEn: `${actorName(user)} paid ₹${amount.toFixed(0)} for your ${handover.materialCategory || lot.categoryName || "lot"} (${handover.weightKg || lot.weightKg || 0} kg).`,
+        titleHi: "भुगतान प्राप्त हुआ",
+        titleMr: "पेमेंट मिळाला",
+        bodyHi: `आपके माल के लिए ₹${amount.toFixed(0)} का भुगतान हो गया है।`,
+        bodyMr: `तुमच्या मालासाठी ₹${amount.toFixed(0)} पेमेंट झाले आहे.`,
+      });
+    } catch {
+      // Settlement still stands if the inbox write fails.
+    }
 
     if (lot.status !== lotStatus.COMPLETED) {
       try {

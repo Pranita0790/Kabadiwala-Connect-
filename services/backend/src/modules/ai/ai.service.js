@@ -21,6 +21,7 @@
 */
 
 const aiClient = require("../../clients/ai-service.client");
+const geminiClient = require("../../clients/gemini.client");
 const aiAnalysesRepository = require("../lots/ai-analyses.repository");
 const config = require("../../config/env");
 const logger = require("../../lib/logger");
@@ -37,12 +38,29 @@ const { deployedModel } = require("../../config/constants");
  * @returns {{analysis: object, latencyMs: number}}
  */
 async function analyze({ file, weightKg, lotId = null, user = null }) {
-  const { raw, latencyMs } = await aiClient.analyzeMaterialRaw({
+  const params = {
     fileBuffer: file.buffer,
     filename: file.originalname,
     mimetype: file.mimetype,
     weightKg,
-  });
+  };
+
+  let raw;
+  let latencyMs;
+
+  if (geminiClient.isConfigured()) {
+    try {
+      ({ raw, latencyMs } = await geminiClient.analyzeImage(params));
+    } catch (error) {
+      logger.warn("Gemini classify failed; trying Python AI service", {
+        message: error.message,
+      });
+    }
+  }
+
+  if (!raw) {
+    ({ raw, latencyMs } = await aiClient.analyzeMaterialRaw(params));
+  }
 
   await persistBestEffort({ raw, latencyMs, lotId, user, file });
 

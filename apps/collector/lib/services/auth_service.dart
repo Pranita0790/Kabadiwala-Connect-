@@ -143,6 +143,7 @@ class AuthService {
       _api.setAuthToken(access);
 
       final local = await _dbService.getUserByPhone(cleanPhone);
+      final remoteRole = (remoteUser?['role'] as String?)?.trim();
       final profile = UserProfile.create(
         id: local?.id,
         name: (remoteUser?['fullName'] as String?)?.trim().isNotEmpty == true
@@ -151,7 +152,9 @@ class AuthService {
         phoneNumber: cleanPhone,
         passwordHash: hashPassword(password),
         city: local?.city ?? '',
-        role: 'collector',
+        role: remoteRole?.isNotEmpty == true
+            ? remoteRole!.toLowerCase()
+            : 'collector',
         photoPath: local?.photoPath,
         isProfileComplete: true,
       );
@@ -279,26 +282,47 @@ class AuthService {
     await _dbService.setCurrentUserId(user.id);
 
     // Mirror the account onto the backend so later password login can sync lots.
+    // If the phone already exists (e.g. earlier dashboard signup), try login so
+    // the collector still gets a JWT / publicId for the user-app kabadi list.
     if (password.trim().length >= 8) {
       final registered = await _api.registerCollector(
         fullName: name.trim(),
         phone: cleanPhone,
         password: password,
       );
-      if (registered.success) {
-        final login = await _api.loginWithPassword(
-          identifier: cleanPhone,
-          password: password,
+      final login = (registered.success ||
+              registered.errorMessage == 'ACCOUNT_EXISTS')
+          ? await _api.loginWithPassword(
+              identifier: cleanPhone,
+              password: password,
+            )
+          : registered;
+
+      if (login.success && login.data != null) {
+        final data = login.data!;
+        await _sessionStore.save(
+          accessToken: data['accessToken'] as String? ?? '',
+          refreshToken: data['refreshToken'] as String?,
+          userId: (data['user'] as Map?)?['id']?.toString(),
         );
-        if (login.success && login.data != null) {
-          final data = login.data!;
-          await _sessionStore.save(
-            accessToken: data['accessToken'] as String? ?? '',
-            refreshToken: data['refreshToken'] as String?,
-            userId: (data['user'] as Map?)?['id']?.toString(),
+        _api.setAuthToken(data['accessToken'] as String?);
+
+        final remoteRole =
+            (data['user'] as Map?)?['role']?.toString().toUpperCase();
+        if (remoteRole != null &&
+            remoteRole.isNotEmpty &&
+            remoteRole != 'COLLECTOR') {
+          throw Exception(
+            'This phone is registered as $remoteRole on the server. '
+            'Kabadiwala list only shows COLLECTOR accounts. '
+            'Ask the team lead to set role=COLLECTOR, then log in again.',
           );
-          _api.setAuthToken(data['accessToken'] as String?);
         }
+      } else if (!registered.success &&
+          registered.errorMessage != 'ACCOUNT_EXISTS') {
+        debugPrint(
+          'Backend collector register failed: ${registered.errorMessage}',
+        );
       }
     }
 

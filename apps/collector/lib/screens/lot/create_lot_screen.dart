@@ -2,29 +2,24 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/price.dart';
 import '../../repositories/lot_repository.dart';
 import '../../repositories/price_repository.dart';
-import '../../services/ai_classification_service.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/lot_valuation.dart';
-import '../../services/remote_ai_classification_service.dart';
-import '../../services/backend_url.dart';
 import '../../widgets/custom_button.dart';
+import 'create_lot_args.dart';
 
 class CreateLotScreen extends StatefulWidget {
   final LotRepository? lotRepository;
-  final AiClassificationService? aiService;
   final PriceRepository? priceRepository;
   final ConnectivityService? connectivityService;
 
   const CreateLotScreen({
     super.key,
     this.lotRepository,
-    this.aiService,
     this.priceRepository,
     this.connectivityService,
   });
@@ -36,12 +31,9 @@ class CreateLotScreen extends StatefulWidget {
 class _CreateLotScreenState extends State<CreateLotScreen> {
   final _formKey = GlobalKey<FormState>();
   late final LotRepository _lotRepository;
-  late final AiClassificationService _aiService;
   late final PriceRepository _priceRepository;
   late final ConnectivityService _connectivity;
   final TextEditingController _notesController = TextEditingController();
-
-  static const bool _useMockAi = bool.fromEnvironment('USE_MOCK_AI', defaultValue: false);
 
   @override
   void initState() {
@@ -50,10 +42,6 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
     _connectivity = widget.connectivityService ?? ConnectivityService.instance;
     _priceRepository = widget.priceRepository ??
         PriceRepository(connectivityService: _connectivity);
-    _aiService = widget.aiService ??
-        (_useMockAi
-            ? MockAiClassificationService()
-            : RemoteAiClassificationService(baseUrl: AppConstants.backendBaseUrl));
     _loadRates();
   }
 
@@ -61,16 +49,8 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
   String _selectedCategoryId = 'mixed_ewaste';
   double _weightKg = 5.0;
   String _selectedCondition = 'average';
-
-  bool _isAnalyzingAi = false;
   bool _isSaving = false;
-  bool _isAiSuggested = false;
-  bool _aiAnalysisFailed = false;
-  bool _aiLowConfidence = false;
-  bool _aiNeedsConnection = false;
-  bool _isMockAiResult = false;
-  String? _aiElectronicDevice;
-  String? _aiShortDescription;
+  bool _appliedArgs = false;
   bool _usingFallbackRates = true;
   List<Price> _prices = PriceRepository.defaultPrices();
 
@@ -106,71 +86,40 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_appliedArgs) return;
+    _appliedArgs = true;
     final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is String? && args != null && _imagePath == null) {
+    if (args is CreateLotArgs) {
+      _applyDraft(args);
+    } else if (args is String && args.isNotEmpty) {
       _imagePath = args;
-      _triggerAiClassification(_imagePath!);
     }
   }
 
-  Future<void> _triggerAiClassification(String path) async {
-    setState(() {
-      _isAnalyzingAi = true;
-      _aiAnalysisFailed = false;
-      _aiLowConfidence = false;
-      _aiNeedsConnection = false;
-      _isAiSuggested = false;
-      _isMockAiResult = false;
-      _aiElectronicDevice = null;
-      _aiShortDescription = null;
-    });
-
-    // Always try the backend (USB reverse works even if Wi‑Fi/data looks offline).
-    final result = await _aiService.classifyEWasteImage(path);
-    if (!mounted) return;
-
-    final loc = AppLocalizations.of(context);
-    setState(() {
-      _isAnalyzingAi = false;
-      if (result == null) {
-        _aiAnalysisFailed = true;
-        final err = BackendUrl.lastError ?? '';
-        _aiNeedsConnection = err.contains('SocketException') ||
-            err.contains('Failed host lookup') ||
-            err.contains('timed out') ||
-            err.contains('Connection refused');
-        return;
+  void _applyDraft(CreateLotArgs draft) {
+    _imagePath = draft.imagePath;
+    if (draft.categoryId != null && draft.categoryId!.isNotEmpty) {
+      _selectedCategoryId = draft.categoryId!;
+    }
+    if (draft.weightKg != null && draft.weightKg! > 0) {
+      _weightKg = draft.weightKg!.clamp(0.5, 1000.0);
+    }
+    if (draft.condition != null && draft.condition!.isNotEmpty) {
+      _selectedCondition = draft.condition!;
+    }
+    if (draft.notes != null && draft.notes!.trim().isNotEmpty) {
+      _notesController.text = draft.notes!.trim();
+    } else {
+      final bits = [
+        if (draft.electronicDevice != null && draft.electronicDevice!.trim().isNotEmpty)
+          draft.electronicDevice!.trim(),
+        if (draft.shortDescription != null && draft.shortDescription!.trim().isNotEmpty)
+          draft.shortDescription!.trim(),
+      ];
+      if (bits.isNotEmpty) {
+        _notesController.text = bits.join('. ');
       }
-
-      _isMockAiResult = result.isMockResult;
-      _aiElectronicDevice = result.electronicDevice;
-      _aiShortDescription = result.shortDescription;
-      if (LotValuation.shouldAutoSelect(result)) {
-        _selectedCategoryId = result.categoryId;
-        if (result.weightKg != null && result.weightKg! > 0) {
-          _weightKg = result.weightKg!.clamp(0.5, 1000.0);
-        }
-        if (result.condition != null) {
-          _selectedCondition = result.condition!;
-        }
-        final categoryName = _getCategoryName(result.categoryId, loc);
-        final device = (result.electronicDevice ?? result.categoryName).trim();
-        final desc = (result.shortDescription ?? result.notes ?? '').trim();
-        final percent = (result.confidenceScore * 100).clamp(0, 100).round();
-        _notesController.text = [
-          if (device.isNotEmpty) device,
-          if (desc.isNotEmpty) desc,
-          '$categoryName ($percent%)',
-        ].join('. ');
-        _isAiSuggested = true;
-        _aiAnalysisFailed = false;
-        _aiLowConfidence = false;
-      } else {
-        _aiLowConfidence = true;
-        _aiAnalysisFailed = true;
-        _isAiSuggested = false;
-      }
-    });
+    }
   }
 
   String _getCategoryName(String id, AppLocalizations loc) {
@@ -263,113 +212,6 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
                   ),
                 ),
 
-              if (_isAnalyzingAi)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.5),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(loc.translate('analyzingAi'))),
-                    ],
-                  ),
-                )
-              else if (_isAiSuggested)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.accent),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.auto_awesome, color: AppColors.accent, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _isMockAiResult
-                                  ? loc.translate('mockAiLabel')
-                                  : loc.translate('suggestedAi'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.accent,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_aiElectronicDevice != null &&
-                          _aiElectronicDevice!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          '${loc.translate('aiIdentifiedItem')}: ${_aiElectronicDevice!}',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                      Text(
-                        '${loc.translate('aiMatchedCategory')}: ${_getCategoryName(_selectedCategoryId, loc)}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      if (_aiShortDescription != null &&
-                          _aiShortDescription!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          _aiShortDescription!,
-                          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ],
-                  ),
-                )
-              else if ((_aiAnalysisFailed || _aiLowConfidence) && _imagePath != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.shade700),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.orange.shade800, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _aiNeedsConnection
-                              ? loc.translate('aiNeedsConnection')
-                              : _aiLowConfidence
-                                  ? loc.translate('aiLowConfidence')
-                                  : loc.translate('aiAnalysisFailed'),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.orange.shade900,
-                          ),
-                        ),
-                      ),
-                      if (!_aiNeedsConnection)
-                        TextButton(
-                          onPressed: () => _triggerAiClassification(_imagePath!),
-                          child: Text(loc.translate('retryAi')),
-                        ),
-                    ],
-                  ),
-                ),
-
               Text(
                 loc.translate('selectCategory'),
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -393,7 +235,6 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
                   if (val != null) {
                     setState(() {
                       _selectedCategoryId = val;
-                      _isAiSuggested = false;
                     });
                   }
                 },

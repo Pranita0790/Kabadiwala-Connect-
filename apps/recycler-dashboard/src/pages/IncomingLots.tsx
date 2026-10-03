@@ -64,6 +64,10 @@ function IncomingLots() {
       .then(setLots)
       .catch(() => setLots(getStoredLots()));
 
+    const interval = window.setInterval(() => {
+      refreshLotsFromBackend().then(setLots).catch(() => {});
+    }, 12000);
+
     const handleLotsUpdated = () => {
       setLots(getStoredLots());
     };
@@ -74,6 +78,7 @@ function IncomingLots() {
     );
 
     return () => {
+      window.clearInterval(interval);
       window.removeEventListener(
         "kabadiwala-lots-updated",
         handleLotsUpdated

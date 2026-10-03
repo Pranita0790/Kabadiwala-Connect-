@@ -36,7 +36,7 @@ class AppConstants {
 
   static const String logoAsset = 'assets/images/kabadiwala_connect_logo.png';
   static const String dbName = 'kabadiwala_collector.db';
-  static const int dbVersion = 2;
+  static const int dbVersion = 3;
 
   static const String tableLots = 'lots';
   static const String tableEWasteLots = 'lots';
@@ -49,6 +49,9 @@ class AppConstants {
   static const String tableNotifications = 'notifications';
   static const String tablePriceAlerts = 'price_alerts';
   static const String tableUsers = 'users';
+  static const String tableCollectorRates = 'collector_rates';
+  static const String tablePickupRequests = 'pickup_requests';
+  static const String tableCustomers = 'customers';
 
   // Sync States
   static const String syncPending = 'PENDING_SYNC';
@@ -88,4 +91,12 @@ class DemoAuth {
 
   /// Public demo password (min 8 chars for `/api/auth/register`). Not a prod secret.
   static const String password = 'Pass1234a';
+}
+
+/// Demo household customer — also accepted on collector app login (`app: collector`).
+class DemoCustomerAuth {
+  static const String phoneNumber = '9000012345';
+  static const String name = 'Ananya Sharma';
+  static const String password = 'DemoUser1';
+  static const String role = 'USER';
 }

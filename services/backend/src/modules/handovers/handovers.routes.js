@@ -27,6 +27,8 @@ const createSchema = {
       lot_id: z.string().trim().min(1).max(64).optional(),
       recyclerId: z.string().trim().max(64).optional(),
       recycler_id: z.string().trim().max(64).optional(),
+      recyclerName: z.string().trim().max(120).optional(),
+      recycler_name: z.string().trim().max(120).optional(),
       materialCategory: z.string().trim().max(120).optional(),
       material_category: z.string().trim().max(120).optional(),
       weightKg: z.number().nonnegative().finite().optional(),
@@ -49,6 +51,8 @@ const byIdSchema = {
       // Collector demo / offline confirm: stamp both parties so earnings post.
       completeBoth: z.boolean().optional(),
       demoComplete: z.boolean().optional(),
+      paymentMethod: z.enum(["CASH", "UPI"]).optional(),
+      finalAmount: z.number().nonnegative().finite().optional(),
     })
     .strip()
     .optional()

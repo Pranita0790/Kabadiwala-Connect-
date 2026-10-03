@@ -17,6 +17,7 @@
 
 const { checkConnection } = require("../../db/pool");
 const aiClient = require("../../clients/ai-service.client");
+const geminiClient = require("../../clients/gemini.client");
 const firebase = require("../../lib/firebase");
 
 async function liveness() {
@@ -50,23 +51,33 @@ async function readiness({ skipAi = false } = {}) {
 
   let aiUp = true;
 
+  checks.gemini = {
+    status: geminiClient.isConfigured() ? "configured" : "disabled",
+  };
+
   if (!skipAi) {
-    aiUp = await aiClient
-      .health()
-      .then((result) => {
-        checks.aiService = {
-          status: result.reachable ? "up" : "down",
-          latencyMs: result.latencyMs,
-          circuitBreaker: result.breaker?.state ?? null,
-        };
+    if (geminiClient.isConfigured()) {
+      checks.aiService = { status: "up", engine: "gemini" };
+      aiUp = true;
+    } else {
+      aiUp = await aiClient
+        .health()
+        .then((result) => {
+          checks.aiService = {
+            status: result.reachable ? "up" : "down",
+            engine: "python",
+            latencyMs: result.latencyMs,
+            circuitBreaker: result.breaker?.state ?? null,
+          };
 
-        return result.reachable;
-      })
-      .catch((error) => {
-        checks.aiService = { status: "down", error: error.message };
+          return result.reachable;
+        })
+        .catch((error) => {
+          checks.aiService = { status: "down", error: error.message };
 
-        return false;
-      });
+          return false;
+        });
+    }
   }
 
   /*

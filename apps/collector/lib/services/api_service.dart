@@ -9,6 +9,8 @@ import '../models/price.dart';
 import '../models/price_alert.dart';
 import '../models/recycler.dart';
 import '../models/transaction.dart';
+import '../models/pickup_request.dart';
+import '../models/collector_rate.dart';
 import 'session_store.dart';
 import 'backend_url.dart';
 import 'lot_valuation.dart' as lot_valuation;
@@ -714,6 +716,7 @@ class RemoteApiService implements ApiService {
             body: json.encode({
               'identifier': identifier,
               'password': password,
+              'app': 'collector',
             }),
           )
           .timeout(const Duration(seconds: 12));
@@ -727,8 +730,13 @@ class RemoteApiService implements ApiService {
         }
         return ApiResponse.success(data, statusCode: 200);
       }
+      final code = body['code']?.toString();
+      // Household USER accounts must use the customer app, not this collector login.
+      if (response.statusCode == 403 || code == 'FORBIDDEN') {
+        return ApiResponse.failure('wrongAppRoleError', statusCode: response.statusCode);
+      }
       return ApiResponse.failure(
-        (body['code'] as String?) ??
+        code ??
             (body['message'] as String?) ??
             'invalidCredentialsError',
         statusCode: response.statusCode,
@@ -985,7 +993,7 @@ class RemoteApiService implements ApiService {
   @override
   Future<ApiResponse<Handover>> uploadHandover(Handover handover) async {
     try {
-      await BackendUrl.resolve(client: _client);
+      await BackendUrl.resolve(client: _client, force: true);
       await _ensureAuthToken();
       final uri = Uri.parse('$baseUrl/handovers');
       final body = {
@@ -998,6 +1006,8 @@ class RemoteApiService implements ApiService {
         'lotId': handover.lotId,
         'lot_id': handover.lotId,
         'recyclerId': handover.recyclerId,
+        'recyclerName': handover.recyclerName,
+        'recycler_name': handover.recyclerName,
         'materialCategory': handover.materialCategory,
         'weightKg': handover.weightKg,
         'agreedAmount': handover.agreedAmount,
@@ -1038,10 +1048,11 @@ class RemoteApiService implements ApiService {
             .post(
               uri,
               headers: _headers,
-              // Collector demo confirm stamps both parties so earnings post.
+              // Collector may only stamp its own side. Recycler website
+              // completes payment / dual confirm.
               body: json.encode({
-                'completeBoth': true,
-                'demoComplete': true,
+                'completeBoth': false,
+                'demoComplete': false,
               }),
             )
             .timeout(const Duration(seconds: 10)),
@@ -1062,22 +1073,32 @@ class RemoteApiService implements ApiService {
   @override
   Future<ApiResponse<List<AppNotification>>> fetchNotifications() async {
     try {
+      await BackendUrl.resolve(client: _client);
+      await _ensureAuthToken();
       final uri = Uri.parse('$baseUrl/notifications');
-      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+      final response = await _withAuthRetry(
+        () => _client.get(uri, headers: _headers).timeout(const Duration(seconds: 8)),
+      );
 
       if (response.statusCode == 200) {
         final body = json.decode(response.body);
         final rawList = body['data']?['notifications'] ?? body['notifications'] ?? body['data'];
-        if (rawList is List && rawList.isNotEmpty) {
+        if (rawList is List) {
           final notifs = rawList
-              .map((item) => AppNotification.fromMap(Map<String, dynamic>.from(item as Map)))
+              .whereType<Map>()
+              .map((item) => AppNotification.fromMap(Map<String, dynamic>.from(item)))
+              .where((item) => item.id.isNotEmpty)
               .toList();
           return ApiResponse.success(notifs, statusCode: 200);
         }
+        return ApiResponse.success(const <AppNotification>[], statusCode: 200);
       }
-      return await _mock.fetchNotifications();
-    } catch (_) {
-      return await _mock.fetchNotifications();
+      return ApiResponse.failure(
+        'Notifications unavailable',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      return ApiResponse.failure('Failed to fetch notifications: $e');
     }
   }
 
@@ -1100,5 +1121,225 @@ class RemoteApiService implements ApiService {
     } catch (_) {
       return await _mock.uploadPriceAlert(alert);
     }
+  }
+
+  /// Public Razorpay Checkout Key Id (never the secret).
+  Future<String?> fetchRazorpayKeyId() async {
+    try {
+      final uri = Uri.parse('$baseUrl/payment-config');
+      final response =
+          await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) return null;
+      final decoded = json.decode(response.body);
+      if (decoded is! Map) return null;
+      final data = decoded['data'];
+      if (data is! Map) return null;
+      final key = data['razorpayKeyId']?.toString();
+      if (key == null || key.isEmpty) return null;
+      return key;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<ApiResponse<List<PickupRequest>>> fetchPickupRequests({String? status}) async {
+    try {
+      final query = (status != null && status.isNotEmpty) ? '?status=$status' : '';
+      final uri = Uri.parse('$baseUrl/pickup-requests$query');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) {
+        return ApiResponse.failure('Pickup requests unavailable', statusCode: response.statusCode);
+      }
+      final decoded = json.decode(response.body);
+      final list = _extractNamedList(decoded, 'requests');
+      return ApiResponse.success(
+        list.map((item) => PickupRequest.fromMap(Map<String, dynamic>.from(item as Map))).toList(),
+      );
+    } catch (e) {
+      return ApiResponse.failure('Failed to fetch pickup requests: $e');
+    }
+  }
+
+  Future<ApiResponse<PickupRequest>> patchPickupRequestStatus(String id, String status) async {
+    try {
+      final uri = Uri.parse('$baseUrl/pickup-requests/$id/status');
+      final response = await _client
+          .patch(uri, headers: _headers, body: json.encode({'status': status}))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        final map = _extractNamedObject(decoded, 'request');
+        if (map != null) {
+          return ApiResponse.success(PickupRequest.fromMap(map));
+        }
+      }
+      return ApiResponse.failure('Could not update pickup status', statusCode: response.statusCode);
+    } catch (e) {
+      return ApiResponse.failure('Failed to update pickup status: $e');
+    }
+  }
+
+  Future<ApiResponse<PickupRequest>> completePickupRequest({
+    required String id,
+    required double actualWeightKg,
+    required String paymentMethod,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/pickup-requests/$id/complete');
+      final response = await _client
+          .post(
+            uri,
+            headers: _headers,
+            body: json.encode({
+              'actualWeightKg': actualWeightKg,
+              'paymentMethod': paymentMethod,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        final map = _extractNamedObject(decoded, 'request');
+        if (map != null) {
+          return ApiResponse.success(PickupRequest.fromMap(map));
+        }
+      }
+      return ApiResponse.failure('Could not complete pickup', statusCode: response.statusCode);
+    } catch (e) {
+      return ApiResponse.failure('Failed to complete pickup: $e');
+    }
+  }
+
+  Future<ApiResponse<List<CollectorRate>>> fetchCollectorRates({
+    String? collectorId,
+  }) async {
+    try {
+      final query = (collectorId != null && collectorId.trim().isNotEmpty)
+          ? '?collectorId=${Uri.encodeQueryComponent(collectorId.trim())}'
+          : '';
+      final uri = Uri.parse('$baseUrl/collector-rates$query');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) {
+        return ApiResponse.failure('Collector rates unavailable', statusCode: response.statusCode);
+      }
+      final decoded = json.decode(response.body);
+      final list = _extractNamedList(decoded, 'rates');
+      return ApiResponse.success(
+        list.map((item) => CollectorRate.fromMap(Map<String, dynamic>.from(item as Map))).toList(),
+      );
+    } catch (e) {
+      return ApiResponse.failure('Failed to fetch collector rates: $e');
+    }
+  }
+
+  Future<ApiResponse<CollectorRate>> uploadCollectorRate(CollectorRate rate) async {
+    try {
+      final uri = Uri.parse('$baseUrl/collector-rates');
+      final response = await _client
+          .post(
+            uri,
+            headers: _headers,
+            body: json.encode({
+              'id': rate.id,
+              'collectorId': rate.collectorId,
+              'materialCategory': rate.materialCategory,
+              'materialName': rate.materialName,
+              'ratePerKg': rate.ratePerKg,
+              'unit': rate.unit,
+              'isActive': rate.isActive,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse.success(rate, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure('Could not save collector rate', statusCode: response.statusCode);
+    } catch (e) {
+      return ApiResponse.failure('Failed to save collector rate: $e');
+    }
+  }
+
+  Future<ApiResponse<bool>> deleteRemoteCollectorRate(String id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/collector-rates/$id');
+      final response = await _client.delete(uri, headers: _headers).timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        return ApiResponse.success(true);
+      }
+      return ApiResponse.failure('Could not delete collector rate', statusCode: response.statusCode);
+    } catch (e) {
+      return ApiResponse.failure('Failed to delete collector rate: $e');
+    }
+  }
+
+  Future<ApiResponse<List<Map<String, dynamic>>>> fetchLoyaltyCustomers() async {
+    try {
+      final uri = Uri.parse('$baseUrl/loyalty/customers');
+      final response =
+          await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) {
+        return ApiResponse.failure(
+          'Loyalty customers unavailable',
+          statusCode: response.statusCode,
+        );
+      }
+      final decoded = json.decode(response.body);
+      final list = _extractNamedList(decoded, 'customers');
+      return ApiResponse.success(
+        list
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList(),
+      );
+    } catch (e) {
+      return ApiResponse.failure('Failed to fetch loyalty customers: $e');
+    }
+  }
+
+  Future<ApiResponse<bool>> sendLoyaltyReminder({
+    required String userId,
+    required String cadence,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/loyalty/reminders');
+      final response = await _client
+          .post(
+            uri,
+            headers: _headers,
+            body: json.encode({'userId': userId, 'cadence': cadence}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse.success(true, statusCode: response.statusCode);
+      }
+      final body = json.decode(response.body);
+      final message = body is Map
+          ? (body['message']?.toString() ?? 'Could not send reminder')
+          : 'Could not send reminder';
+      return ApiResponse.failure(message, statusCode: response.statusCode);
+    } catch (e) {
+      return ApiResponse.failure('Failed to send reminder: $e');
+    }
+  }
+
+  List<dynamic> _extractNamedList(dynamic decoded, String key) {
+    if (decoded is Map) {
+      final data = decoded['data'];
+      if (data is Map && data[key] is List) return data[key] as List;
+      if (decoded[key] is List) return decoded[key] as List;
+    }
+    return const [];
+  }
+
+  Map<String, dynamic>? _extractNamedObject(dynamic decoded, String key) {
+    if (decoded is Map) {
+      final data = decoded['data'];
+      if (data is Map && data[key] is Map) {
+        return Map<String, dynamic>.from(data[key] as Map);
+      }
+      if (decoded[key] is Map) {
+        return Map<String, dynamic>.from(decoded[key] as Map);
+      }
+    }
+    return null;
   }
 }

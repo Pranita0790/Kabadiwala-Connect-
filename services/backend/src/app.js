@@ -20,6 +20,10 @@
 |   /api/traceability/*              traceability timeline
 |   /api/notifications/*             collector notifications
 |   /api/price-alerts/*              collector price alerts
+|   /api/pickup-requests/*           customer pickup workflow (in-memory)
+|   /api/collector-rates/*           collector rate card (in-memory)
+|   /api/loyalty/*                   favorite / regular / reminder / referral
+|   /api/user/*                      household user app APIs (in-memory)
 |
 | Everything under /api except /api/ai is behind the database guard: it
 | returns 503 rather than a connection-refused 500 when no database is
@@ -51,6 +55,10 @@ const transactionsRoutes = require("./modules/transactions/transactions.routes")
 const traceabilityRoutes = require("./modules/traceability/traceability.routes");
 const notificationsRoutes = require("./modules/notifications/notifications.routes");
 const priceAlertsRoutes = require("./modules/price-alerts/price-alerts.routes");
+const pickupRequestsRoutes = require("./modules/pickup-requests/pickup-requests.routes");
+const collectorRatesRoutes = require("./modules/collector-rates/collector-rates.routes");
+const loyaltyRoutes = require("./modules/loyalty/loyalty.routes");
+const userApiRoutes = require("./modules/user-api/user-api.routes");
 const aiRoutes = require("./modules/ai/ai.routes");
 
 const app = express();
@@ -102,6 +110,10 @@ app.get("/", (req, res) => {
         traceability: "/api/traceability",
         notifications: "/api/notifications",
         priceAlerts: "/api/price-alerts",
+        pickupRequests: "/api/pickup-requests",
+        collectorRates: "/api/collector-rates",
+        loyalty: "/api/loyalty",
+        user: "/api/user",
       },
     },
   });
@@ -130,6 +142,26 @@ app.get(
 */
 
 app.use("/api/ai", aiRoutes);
+app.use("/api/pickup-requests", pickupRequestsRoutes);
+app.use("/api/collector-rates", collectorRatesRoutes);
+
+// Public Checkout Key Id only (never secret) — used by collector + user apps.
+app.get(
+  "/api/payment-config",
+  asyncHandler(async (req, res) => {
+    const keyId = config.razorpay?.keyId || "";
+    const configured =
+      typeof keyId === "string" &&
+      (keyId.startsWith("rzp_test_") || keyId.startsWith("rzp_live_"));
+    sendSuccess(res, {
+      data: {
+        razorpayKeyId: configured ? keyId : null,
+        mode: keyId.startsWith("rzp_live_") ? "live" : "test",
+        configured,
+      },
+    });
+  })
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -138,6 +170,8 @@ app.use("/api/ai", aiRoutes);
 */
 
 app.use("/api/auth", requireDatabase, authRoutes);
+app.use("/api/loyalty", requireDatabase, loyaltyRoutes);
+app.use("/api/user", requireDatabase, userApiRoutes);
 app.use("/api/materials", requireDatabase, materialsRoutes);
 app.use("/api/rates", requireDatabase, ratesRoutes);
 app.use("/api/prices", requireDatabase, ratesRoutes);

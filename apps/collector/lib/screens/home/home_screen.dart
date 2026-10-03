@@ -119,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadData() async {
     await _loadLots();
     await _loadEarnings();
+    await _notificationService.pullFromBackend();
     await _loadNotificationCount();
   }
 
@@ -714,6 +715,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () => Navigator.pop(context),
                   ),
                   ListTile(
+                    leading: const Icon(Icons.auto_awesome, color: AppColors.textPrimary),
+                    title: Text(loc.translate('aiAnalyzerTitle')),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/ai-analyzer');
+                    },
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.inventory_2_rounded, color: AppColors.textPrimary),
                     title: Text(loc.translate('myLots')),
                     onTap: () async {
@@ -746,6 +755,30 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/prices');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.assignment_rounded, color: AppColors.textPrimary),
+                    title: const Text('Pickup Requests'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/requests');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.people_alt_rounded, color: AppColors.textPrimary),
+                    title: const Text('Customers'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/customers');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.sell_rounded, color: AppColors.textPrimary),
+                    title: const Text('My Rate Card'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/my-rate-card');
                     },
                   ),
                   ListTile(
@@ -980,8 +1013,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const SizedBox(height: 12),
-
-              // Quick Actions Row 1: Recycler Matching & Safety Guidance
+              CustomButton(
+                label: loc.translate('aiAnalyzerTitle'),
+                icon: Icons.auto_awesome,
+                isSecondary: true,
+                onPressed: () => Navigator.pushNamed(context, '/ai-analyzer'),
+              ),
+              const SizedBox(height: 12),
+              CustomButton(
+                label: 'Pickup Requests',
+                icon: Icons.assignment_rounded,
+                isSecondary: true,
+                onPressed: () => Navigator.pushNamed(context, '/requests'),
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(

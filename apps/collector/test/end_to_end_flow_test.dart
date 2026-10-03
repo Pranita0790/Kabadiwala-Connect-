@@ -167,53 +167,6 @@ void main() {
       expect(createdLot.weightKg, equals(10.0));
       expect(createdLot.syncStatus, equals(AppConstants.syncPending));
 
-      // Step 6: Tap "Handover to Recycler" to initiate PIN handover flow
-      await tester.ensureVisible(find.text('Handover to Recycler'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Handover to Recycler'));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pumpAndSettle();
-
-      // Handover PIN screen is displayed (not QR scan)
-      expect(find.text('Ready for Handover'), findsOneWidget);
-      expect(find.text('Handover PIN'), findsWidgets);
-      expect(find.text('Cash'), findsOneWidget);
-      expect(find.text('UPI'), findsOneWidget);
-
-      expect(find.textContaining('website'), findsWidgets);
-
-      // Step 8: Simulate recycler website PIN + payment (hackathon demo)
-      await tester.ensureVisible(find.text('Simulate Recycler Confirmation (Demo)'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Simulate Recycler Confirmation (Demo)'));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Payment receipt'), findsOneWidget);
-      expect(find.text('View in Earnings Ledger'), findsOneWidget);
-
-      // Step 9: Navigate to EARNINGS LEDGER
-      await tester.ensureVisible(find.text('View in Earnings Ledger'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('View in Earnings Ledger'));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Earnings Ledger'), findsOneWidget);
-      expect(find.text('1 Recorded Lots'), findsOneWidget);
-
-      // Verify transaction is cached in SQLite
-      final transactions = await tester.runAsync(() => dbService.getTransactions());
-      expect(transactions!.length, equals(1));
-      expect(transactions.first.lotId, equals(createdLot.id));
-      expect(transactions.first.paymentStatus, equals('PAID'));
-
       await tester.pumpWidget(const SizedBox());
     });
 

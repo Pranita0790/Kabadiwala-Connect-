@@ -6,7 +6,7 @@
 |--------------------------------------------------------------------------
 */
 
-const { queryRows } = require("../../db/query");
+const { queryRows, queryOne } = require("../../db/query");
 
 function toRecyclerDto(row) {
   const accepted = row.accepted_materials
@@ -97,4 +97,19 @@ async function list({ categoryId } = {}) {
   return rows.map(toRecyclerDto);
 }
 
-module.exports = { list, toRecyclerDto };
+async function findIdByOrganisationName(name) {
+  if (!name || !String(name).trim()) return null;
+  const row = await queryOne(
+    `SELECT id
+     FROM recycler_profiles
+     WHERE is_active = TRUE
+       AND LOWER(organisation_name) = LOWER($1)
+     ORDER BY is_authorized DESC
+     LIMIT 1`,
+    [String(name).trim()],
+    { label: "recyclers:findByName" }
+  );
+  return row?.id || null;
+}
+
+module.exports = { list, toRecyclerDto, findIdByOrganisationName };

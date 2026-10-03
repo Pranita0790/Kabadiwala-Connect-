@@ -52,10 +52,15 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _fillDemoCredentials() {
+  void _fillDemoCredentials({bool customer = false}) {
     setState(() {
-      _phoneController.text = DemoAuth.phoneNumber;
-      _passwordController.text = DemoAuth.password;
+      if (customer) {
+        _phoneController.text = DemoCustomerAuth.phoneNumber;
+        _passwordController.text = DemoCustomerAuth.password;
+      } else {
+        _phoneController.text = DemoAuth.phoneNumber;
+        _passwordController.text = DemoAuth.password;
+      }
       _errorMessage = null;
     });
   }
@@ -415,37 +420,81 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 14),
 
-              // Demo Login Quick Chip for Field Testers
-              InkWell(
-                onTap: _fillDemoCredentials,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withAlpha(20),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.primary.withAlpha(50)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.touch_app_rounded,
-                          color: AppColors.primary, size: 18),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          loc.translate('demoNumberHint'),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
+              // Demo chips: collector kabadiwala + household customer
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _fillDemoCredentials(customer: false),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withAlpha(20),
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: AppColors.primary.withAlpha(50)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.pedal_bike_rounded,
+                                color: AppColors.primary, size: 18),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                loc.translate('demoCollectorHint'),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _fillDemoCredentials(customer: true),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withAlpha(20),
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: AppColors.primary.withAlpha(50)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.home_rounded,
+                                color: AppColors.primary, size: 18),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                loc.translate('demoCustomerHint'),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
 
               const SizedBox(height: 28),

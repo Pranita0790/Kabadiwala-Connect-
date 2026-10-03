@@ -23,6 +23,7 @@ describe("app wiring", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.service).toBe("kabadiwala-backend");
     expect(res.body.data.endpoints.lots).toBe("/api/lots");
+    expect(res.body.data.endpoints.loyalty).toBe("/api/loyalty");
   });
 
   test("GET /health reports liveness without a database", async () => {

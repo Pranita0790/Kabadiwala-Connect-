@@ -92,10 +92,31 @@ async function findRawByPublicId(publicId) {
   }
 
   // Collector confirms with its local handover UUID (stored as client_reference).
-  return queryOne(
+  const byClient = await queryOne(
     `${HANDOVER_SELECT} WHERE h.client_reference = $1`,
     [publicId],
     { label: "handovers:findRawByClientReference" }
+  );
+  if (byClient) {
+    return byClient;
+  }
+
+  // Recycler website confirms with the lot public id / lot number.
+  return queryOne(
+    `${HANDOVER_SELECT}
+     WHERE l.public_id = $1 OR l.lot_number = $1 OR l.client_reference::text = $1
+     ORDER BY h.created_at DESC
+     LIMIT 1`,
+    [publicId],
+    { label: "handovers:findRawByLotIdentifier" }
+  );
+}
+
+async function findRawLatestByLotInternalId(lotInternalId) {
+  return queryOne(
+    `${HANDOVER_SELECT} WHERE h.lot_id = $1 ORDER BY h.created_at DESC LIMIT 1`,
+    [lotInternalId],
+    { label: "handovers:findRawByLot" }
   );
 }
 
@@ -196,6 +217,7 @@ module.exports = {
   findByPublicId,
   findByClientReference,
   findRawByPublicId,
+  findRawLatestByLotInternalId,
   markConfirmed,
   listForRecycler,
   toHandoverDto,

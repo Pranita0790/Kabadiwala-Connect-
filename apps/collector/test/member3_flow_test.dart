@@ -329,7 +329,8 @@ void main() {
       expect(find.text('Ready for Handover'), findsOneWidget);
       expect(find.text('EcoRecycle Maharashtra'), findsOneWidget);
       expect(find.textContaining('Waiting for Recycler Confirmation'), findsOneWidget);
-      expect(find.text('Simulate Recycler Confirmation (Demo)'), findsOneWidget);
+      expect(find.text('Simulate Recycler Confirmation (Demo)'), findsNothing);
+      expect(find.text('Send lot to website'), findsOneWidget);
     });
   });
 

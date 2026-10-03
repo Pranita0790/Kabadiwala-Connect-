@@ -85,6 +85,14 @@ class RemoteAiClassificationService implements AiClassificationService {
                 if (shortDescription != null && shortDescription.trim().isNotEmpty)
                   shortDescription.trim(),
               ].join('. ');
+              final suggestions = <String>[];
+              final rawTips = jsonResult['suggestions'];
+              if (rawTips is List) {
+                for (final tip in rawTips) {
+                  final text = tip.toString().trim();
+                  if (text.isNotEmpty) suggestions.add(text);
+                }
+              }
               return ClassificationResult(
                 categoryId: mappedId,
                 categoryName: categoryLabel ?? material,
@@ -96,6 +104,7 @@ class RemoteAiClassificationService implements AiClassificationService {
                 isLowConfidence: lowConfidence,
                 electronicDevice: electronicDevice,
                 shortDescription: shortDescription,
+                suggestions: suggestions,
               );
             }
           } else {

@@ -7,11 +7,20 @@
 const { queryRows, queryOne, transaction } = require("../../db/query");
 
 function toTransactionDto(row) {
+  // Prefer offline collector UUID so the Flutter app can match local lots.
+  const lotClientRef = row.lot_client_reference || null;
+  const lotPublic = row.lot_public_id || row.lot_id;
+  const lotIdForApp = lotClientRef || lotPublic;
   return {
     id: row.public_id,
-    lotId: row.lot_public_id || row.lot_id,
-    lot_id: row.lot_public_id || row.lot_id,
+    lotId: lotIdForApp,
+    lot_id: lotIdForApp,
+    clientReference: lotClientRef,
+    client_reference: lotClientRef,
+    lotPublicId: lotPublic,
+    lot_public_id: lotPublic,
     lotNumber: row.lot_number,
+    lot_number: row.lot_number,
     handoverId: row.handover_public_id,
     recyclerId: row.recycler_name || row.recycler_id,
     recycler_id: row.recycler_name || row.recycler_id,
@@ -40,6 +49,7 @@ const TX_SELECT = `
     t.*,
     t.public_id,
     l.public_id AS lot_public_id,
+    l.client_reference AS lot_client_reference,
     l.lot_number,
     h.public_id AS handover_public_id,
     u.public_id AS collector_public_id,

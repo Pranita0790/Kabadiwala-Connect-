@@ -55,8 +55,9 @@ is only used to prove a phone number; it does not replace the platform session.
   `Authorization: Bearer <token>`.
 - **Refresh token** — opaque, stored hashed server-side, rotated on every
   refresh (`JWT_REFRESH_TTL`, default 30d).
-- **Roles** — `COLLECTOR`, `RECYCLER`, `ADMIN`. Authorization is enforced on the
-  backend; the client never chooses its own role.
+- **Roles** — `COLLECTOR`, `USER`, `RECYCLER`, `ADMIN`. Authorization is enforced
+  on the backend. Mobile apps may request a role at **register** only
+  (`COLLECTOR` or `USER`); they cannot escalate after sign-up.
 
 ### Collector sign-in
 
@@ -163,11 +164,32 @@ server-side only.
 
 ### `POST /api/auth/login` — public
 
-Password login for accounts that have a password (e.g. recycler dashboard).
+Password login for accounts that have a password (collector app, household user
+app, or recycler dashboard).
 
+| Field        | Type   | Required | Notes |
+|--------------|--------|----------|-------|
+| `identifier` | string | yes      | Phone (any Indian format) or email. |
+| `password`   | string | yes      | Account password. |
+| `app`        | string | no       | `collector` → `COLLECTOR` **or** `USER`; `user` → `USER` only. Omit for dashboard/any role. |
+
+- Wrong-app login returns **403** (`FORBIDDEN`) — e.g. a `RECYCLER` cannot use
+  the collector mobile login, and a `COLLECTOR` cannot use the household user app.
 - A collector account has no `password_hash`. Requesting password login for one
   returns an error with code `FIREBASE_SIGN_IN_REQUIRED` so the client knows to
   use the Firebase flow.
+
+### `POST /api/auth/register` — public
+
+Creates a password account for the collector or household user apps.
+
+| Field      | Type   | Required | Notes |
+|------------|--------|----------|-------|
+| `fullName` | string | yes      | Display name. |
+| `phone`    | string | yes      | Indian mobile. |
+| `password` | string | yes      | Min 8 characters. |
+| `role`     | string | no       | `COLLECTOR` (default) or `USER`. |
+| `email`    | string | no       | Optional. |
 
 ### `POST /api/auth/refresh` — public
 
@@ -307,11 +329,16 @@ the shared Postgres tables (`recycler_profiles`, `handovers`, `transactions`).
 |--------|------|------|-------|
 | `GET` | `/api/recyclers` | optional | `{ success, recyclers[], count }` + `data`. Filter with `?categoryId=`. |
 | `POST` | `/api/handovers` | COLLECTOR, RECYCLER, ADMIN | Create handover for a lot. Body accepts camelCase or collector snake_case (`lot_id`, `agreed_amount`, …). Idempotent on `clientReference` / UUID `id`. If the lot is missing, a collector/admin request auto-creates an idempotent lot from the handover payload (`lotId` as `clientReference`) so offline sync can complete. |
-| `POST` | `/api/handovers/:id/confirm` | COLLECTOR, RECYCLER, ADMIN | Dual confirmation. When both sides (or an admin) confirm, creates a `transactions` row and moves the lot toward `COMPLETED`. Collector may send `{ "completeBoth": true }` (or `demoComplete`) to stamp both parties in one call for the in-app demo confirm flow. Handover id may be `public_id` or the collector `client_reference` UUID. Lot id on create may be `public_id`, `client_reference`, or `lot_number`. |
+| `POST` | `/api/handovers/:id/confirm` | COLLECTOR, RECYCLER, ADMIN | Dual confirmation. `:id` may be the handover `public_id`, collector `client_reference`, **or the lot** public id / lot number. Recyclers completing payment from the website should send `{ "completeBoth": true, "paymentMethod": "CASH"|"UPI" }`. When both sides confirm, creates a `transactions` row (`paymentStatus: PAID`), notifies the collector, and moves the lot toward `COMPLETED`. |
 | `GET` | `/api/transactions/my` | COLLECTOR, RECYCLER, ADMIN | Collector earnings ledger / recycler settlement list. `{ success, transactions[], count }` + `data`. |
 
 `GET /api/lots` for a **RECYCLER** returns lots assigned to that recycler **or**
 still unclaimed (`recycler_id IS NULL`), so Incoming Lots can accept work.
+
+Lot payloads include `clientReference` (offline collector UUID) when present.
+The collector handover PIN is derived from `clientReference` (not `id` /
+`lotNumber`); the recycler website must accept a PIN matching
+`clientReference`, falling back to `id` for older rows.
 
 ---
 
@@ -324,12 +351,78 @@ Both require a bearer token and return only the caller's own records.
 
 ---
 
+## 11b. Customer pickup workflow (collector app)
+
+These endpoints power the collector **customer / pickup** screens. They are
+in-memory on the Node gateway today (no Postgres table yet) and stay usable
+when the database is down. The Flutter app still caches rows in SQLite.
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/api/pickup-requests` | optional | `{ success, data: { requests[], count } }`. Filter with `?status=`. |
+| `GET` | `/api/pickup-requests/:id` | optional | `{ success, data: { request } }`. |
+| `POST` | `/api/pickup-requests` | optional | Create. Body camelCase (`userName`, `pickupAddress`, `estimatedWeightKg`, `ratePerKg`, …). |
+| `PATCH` | `/api/pickup-requests/:id/status` | optional | Status: `PENDING`, `ACCEPTED`, `ON_MY_WAY`, `COLLECTING`, `COMPLETED`, `REJECTED`, `CANCELLED`. |
+| `POST` | `/api/pickup-requests/:id/complete` | optional | Body `{ actualWeightKg, paymentMethod }`. `finalAmount = actualWeightKg * ratePerKg`. |
+| `GET` | `/api/collector-rates` | optional | Collector-owned rate card `{ success, data: { rates[], count } }`. Optional `?collectorId=` (or collector JWT) filters to that kabadiwala; falls back to seed `default_collector` rates when empty. |
+| `POST` | `/api/collector-rates` | optional | Create/replace a rate. When a COLLECTOR JWT is present, `collectorId` is bound to that user's `publicId` so household `/api/user/vendors` can show the live rate card. |
+| `DELETE` | `/api/collector-rates/:id` | optional | Soft-deletes (`isActive: false`). Collectors may only delete their own rates. |
+
+This is separate from recycler market rates (`GET /api/rates`).
+
+---
+
+## 11c. Household user app (`apps/user`)
+
+In-memory Node gateway APIs for the Flutter **user** (household) app.
+Requires a database-backed JWT from the **shared** auth system
+(`POST /api/auth/login` with `app: "user"`, role `USER`). Creating a request
+also mirrors into `/api/pickup-requests` so the collector app can see it.
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/api/user/vendors` | USER bearer | Nearby kabadiwalas from live `COLLECTOR` accounts (+ local seed), sorted nearest-first. Optional query `category` / `material` (`Paper` \| `Metal` \| `Plastic` \| `E-waste` \| `Other`). Response `{ success, data: { vendors[], count, categories[] } }` where each vendor includes `id` (collector `publicId`), `name`, `phone`, `address`, `city`, `distanceKm`, `rating`, `acceptedMaterials[]`, `rates` (category summary), `rateCard[]` (`materialName`, `materialCategory`, `ratePerKg` from collector rate card), `isCollector`. Live collectors always appear ahead of seed fillers. |
+| `GET` | `/api/user/requests` | USER bearer | User-created sell/pickup requests. |
+| `GET` | `/api/user/requests/:id` | USER bearer | Single request for status polling after collector Accept/Reject. |
+| `POST` | `/api/user/requests` | USER bearer | Create request (camelCase body). Also ingested into collector pickup queue as `PENDING` for Accept/Reject. Collector `PATCH /api/pickup-requests/:id/status` syncs mapped status back (`ACCEPTED`→`KABADIWALA_ACCEPTED`, `REJECTED`→`REJECTED`, `ON_MY_WAY`→`PICKUP_SCHEDULED`, `COMPLETED`→`AMOUNT_CALCULATED`). |
+| `GET` | `/api/payment-config` | none | Shared Razorpay Checkout config for **collector + user** apps. Returns `{ razorpayKeyId, mode, configured }` — **Key Id only** (from `RAZORPAY_KEY_ID`). Never returns the Key Secret. |
+| `GET` | `/api/user/payment-config` | USER bearer | Same Key Id payload for the household user app (authenticated). |
+| `GET` | `/api/user/payments` | USER bearer | Payment history seed data. |
+| `GET` | `/api/user/collections` | USER bearer | Past collection records. |
+
+---
+
+## 11d. Loyalty — favorite, regular customer, reminders, referral
+
+In-memory gateway (`services/backend/src/modules/loyalty`). Requires a
+database-backed JWT (`requireAuth`). Threshold: **≥ 5 completed purchases**
+with the same kabadiwala → `isFavorite` (user) + `isRegular` (collector).
+Referral: **₹20 + ₹20** after the referred user's first completed purchase.
+Reminders are collector-initiated (WEEK / MONTH) with a **6-day cooldown**.
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `POST` | `/api/loyalty/chooses` | USER | Body `{ collectorId }`. Increments choose count. |
+| `POST` | `/api/loyalty/purchases` | USER or COLLECTOR | Body `{ collectorId, requestId, amount, userId? }`. Idempotent on `requestId`. Also mirrored from `POST /api/pickup-requests/:id/complete`. |
+| `GET` | `/api/loyalty/me` | USER | Favorites, relations, referral profile, credits ledger, loyalty notifications. |
+| `GET` | `/api/loyalty/customers` | COLLECTOR | Customers with `completedCount`, `isRegular`, `daysInactive`, `suggestedCadence` (`WEEK` if ≥7d, `MONTH` if ≥30d). |
+| `POST` | `/api/loyalty/reminders` | COLLECTOR | Body `{ userId, cadence: "WEEK"\|"MONTH" }`. Creates USER in-app notification (raddi/paper/scrap copy). |
+| `POST` | `/api/loyalty/referral/apply` | USER | Body `{ code }` e.g. `KC-XXXX`. |
+| `GET` | `/api/loyalty/referral` | USER | Own code, credits, earnings. |
+| `GET` | `/api/loyalty/notifications` | USER or COLLECTOR | In-app loyalty notifications. |
+| `PATCH` | `/api/loyalty/notifications/:id/read` | USER or COLLECTOR | Mark one notification read. |
+
+---
+
 ## 12. AI gateway
 
 ### `POST /api/ai/analyze` — optional auth
 
-`multipart/form-data` with an image file. The backend proxies to the Python AI
-service; the collector never calls the AI service directly (AGENTS.md section 2).
+`multipart/form-data` with an image file. The backend tries **Google Gemini** first when `GEMINI_API_KEY` is set, then
+falls back to the Python AI service. The collector never calls Gemini or
+Python directly (AGENTS.md section 2). Response shape is unchanged so the
+camera screen can fill Create Lot fields. Create Lot itself does **not**
+run classification.
 
 | Part        | Type   | Required | Notes                          |
 |-------------|--------|----------|--------------------------------|
@@ -337,11 +430,10 @@ service; the collector never calls the AI service directly (AGENTS.md section 2)
 | `weight_kg` | number | no       | Optional known weight.         |
 | `lot_id`    | string | no       | Attach the result to a lot.    |
 
-The response is the **raw AI-service body** (snake_case). Existing clients
-keep reading `material` and `confidence`. Additive fields map the inference
-onto collector lot categories (Motherboard / PCB, Copper Wire, Batteries,
-Monitors & Displays, Heavy Electricals, Plastic, Paper, Books, Mixed E-Waste)
-and auto-fill the Create Lot form:
+The response is the **same snake_case body**. Existing clients keep reading
+`material` and `confidence`. Additive fields map the inference onto collector
+lot categories. The camera screen may pre-fill Create Lot from this JSON;
+Create Lot does not call analyze.
 
 ```json
 {
@@ -358,7 +450,11 @@ and auto-fill the Create Lot form:
   "supported_materials": ["pcb", "battery", "cable", "crt", "lcd_panel", "mixed_plastics", "paper", "book"],
   "weight_estimate": { "estimated_weight_kg": 1.0, "confidence": 0.8, "method": "image" },
   "value_estimate": { "estimated_value_inr": 448, "confidence": 0.7, "rate_per_kg_inr": 448, "method": "rate_card" },
-  "suggested_condition": "average"
+  "suggested_condition": "average",
+  "suggestions": [
+    "This looks like a circuit board / converter module.",
+    "Save as Motherboard / PCB for a better rate."
+  ]
 }
 ```
 
@@ -374,8 +470,9 @@ section 7); clients must word critical-mineral results as "potential".
 
 The process starts even when `DATABASE_URL` is not configured.
 
-- `/health` (liveness), `/health/live`, and `POST /api/ai/analyze` work without a
-  database.
+- `/health` (liveness), `/health/live`, `POST /api/ai/analyze`,
+  `/api/pickup-requests`, and `/api/collector-rates` work without a database.
+- `/api/user/*` needs the database (shared JWT auth).
 - Every other `/api/*` route answers `503` with code `DATABASE_NOT_CONFIGURED`
   rather than a connection error.
 - `/health/ready` reports `degraded` with per-dependency detail.

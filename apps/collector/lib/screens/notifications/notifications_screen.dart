@@ -48,8 +48,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
 
     try {
+      await _notificationService.pullFromBackend();
       final list = await _notificationService.getNotifications().timeout(
-        const Duration(seconds: 2),
+        const Duration(seconds: 8),
         onTimeout: () => <AppNotification>[],
       );
       if (mounted) {
@@ -81,7 +82,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (!mounted) return;
 
     if (item.type == AppConstants.notificationTypeHandover ||
-        item.type == AppConstants.notificationHandover) {
+        item.type == AppConstants.notificationHandover ||
+        item.type == 'HANDOVER_CONFIRMED' ||
+        item.type == 'LOT_STATUS') {
       Navigator.pushNamed(context, '/earnings');
     } else if (item.type == AppConstants.notificationTypePriceAlert ||
         item.type == AppConstants.notificationPriceAlert) {
@@ -274,7 +277,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       itemBuilder: (context, index) {
         final item = _notifications[index];
         final isHandover = item.type == AppConstants.notificationTypeHandover ||
-            item.type == AppConstants.notificationHandover;
+            item.type == AppConstants.notificationHandover ||
+            item.type == 'HANDOVER_CONFIRMED' ||
+            item.type == 'LOT_STATUS';
 
         return Card(
           elevation: item.isRead ? 1 : 3,

@@ -68,47 +68,43 @@ class HandoverRepository {
 
     await _dbService.insertHandover(handover);
 
-    // If online, push lot then handover so Incoming Lots can see it.
-    final isOnline = await _connectivityService.isConnected();
-    if (isOnline) {
-      try {
-        final remote = _apiService;
-        if (remote is RemoteApiService) {
-          await remote.refreshAccessToken();
-        }
+    // Always try website sync (connectivity_plus often false-negatives on phones).
+    return pushToWebsite(handover, lot: lot);
+  }
 
-        final linkedLot = lot ?? await _dbService.getLot(effectiveLotId);
-        if (linkedLot != null &&
-            linkedLot.syncStatus != AppConstants.syncSynced) {
-          final lotRes = await _apiService.uploadLot(linkedLot);
-          if (lotRes.success) {
-            await _dbService.markAsSynced(linkedLot.id);
-          }
-        }
+  /// Push lot + handover to Node so the recycler website Incoming Lots list can see it.
+  Future<Handover> pushToWebsite(Handover handover, {EWasteLot? lot}) async {
+    final current = await _dbService.getHandoverById(handover.id) ?? handover;
 
-        final res = await _apiService.uploadHandover(handover);
-        if (res.success) {
-          await _dbService.updateHandoverSyncStatus(
-            handover.id,
-            AppConstants.syncSynced,
-          );
-        } else {
-          await _dbService.updateHandoverSyncStatus(
-            handover.id,
-            AppConstants.syncFailed,
-            retryCount: handover.retryCount + 1,
-          );
-        }
-      } catch (_) {
-        await _dbService.updateHandoverSyncStatus(
-          handover.id,
-          AppConstants.syncFailed,
-          retryCount: handover.retryCount + 1,
-        );
+    try {
+      final remote = _apiService;
+      if (remote is RemoteApiService) {
+        await remote.refreshAccessToken();
       }
+
+      final linkedLot = lot ?? await _dbService.getLot(current.lotId);
+      if (linkedLot != null) {
+        final lotRes = await _apiService.uploadLot(linkedLot);
+        if (lotRes.success) {
+          await _dbService.markAsSynced(linkedLot.id);
+        }
+      }
+
+      final res = await _apiService.uploadHandover(current);
+      await _dbService.updateHandoverSyncStatus(
+        current.id,
+        res.success ? AppConstants.syncSynced : AppConstants.syncFailed,
+        retryCount: res.success ? current.retryCount : current.retryCount + 1,
+      );
+    } catch (_) {
+      await _dbService.updateHandoverSyncStatus(
+        current.id,
+        AppConstants.syncFailed,
+        retryCount: current.retryCount + 1,
+      );
     }
 
-    return handover;
+    return (await _dbService.getHandoverById(current.id)) ?? current;
   }
 
   /// Confirms a handover physically agreed by the recycler (PIN / facility verify).

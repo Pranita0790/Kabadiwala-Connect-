@@ -12,6 +12,7 @@ class ClassificationResult {
   final bool isLowConfidence;
   final String? electronicDevice;
   final String? shortDescription;
+  final List<String> suggestions;
 
   ClassificationResult({
     required this.categoryId,
@@ -24,6 +25,7 @@ class ClassificationResult {
     this.isLowConfidence = false,
     this.electronicDevice,
     this.shortDescription,
+    this.suggestions = const [],
   });
 }
 
@@ -53,6 +55,10 @@ class MockAiClassificationService implements AiClassificationService {
           'Circuit board with chips and copper traces; best match is Motherboard / PCB.',
       notes:
           'Printed circuit board. Circuit board with chips and copper traces; best match is Motherboard / PCB.',
+      suggestions: const [
+        'This looks like a circuit board / converter module.',
+        'Save as Motherboard / PCB for a better rate.',
+      ],
     );
   }
 }

@@ -9,6 +9,8 @@ export interface Lot {
   id: string;
   /** Backend public UUID — used for PATCH /lots/:id/status when present. */
   publicId?: string;
+  /** Offline collector lot UUID — PIN seed used by the Flutter app. */
+  clientReference?: string | null;
   material: string;
   collector: string;
   location: string;

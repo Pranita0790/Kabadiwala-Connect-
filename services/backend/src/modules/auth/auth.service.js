@@ -36,12 +36,21 @@ const {
 const { normalisePhone } = require("./auth.schema");
 const {
   AuthenticationError,
+  AuthorizationError,
   ConflictError,
   NotFoundError,
   ValidationError,
   UnprocessableError,
 } = require("../../lib/errors");
+const { userRole } = require("../../config/constants");
 const logger = require("../../lib/logger");
+
+// Collector mobile login accepts both kabadiwala (COLLECTOR) and household (USER).
+// User app login stays USER-only.
+const APP_ALLOWED_ROLES = Object.freeze({
+  collector: new Set([userRole.COLLECTOR, userRole.USER]),
+  user: new Set([userRole.USER]),
+});
 
 const GENERIC_LOGIN_FAILURE = "Incorrect phone number/email or password.";
 
@@ -130,7 +139,7 @@ async function register({ fullName, phone: rawPhone, email, password, role }) {
     isVerified: false,
   });
 
-  logger.info("Collector account registered", {
+  logger.info("Account registered", {
     userId: user.publicId,
     role: user.role,
   });
@@ -187,7 +196,7 @@ async function registerRecycler({
 |--------------------------------------------------------------------------
 */
 
-async function login({ identifier, password }, context = {}) {
+async function login({ identifier, password, app }, context = {}) {
   // Accept a phone in any common format, or an email.
   const lookup = identifier.includes("@")
     ? identifier.toLowerCase()
@@ -220,6 +229,15 @@ async function login({ identifier, password }, context = {}) {
 
   if (!user.isActive) {
     throw new AuthenticationError("Account is deactivated", "ACCOUNT_INACTIVE");
+  }
+
+  const allowedRoles = app ? APP_ALLOWED_ROLES[app] : null;
+  if (allowedRoles && !allowedRoles.has(user.role)) {
+    throw new AuthorizationError(
+      app === "collector"
+        ? "This account cannot sign in on the collector app."
+        : "This account is not a household user. Open the collector app to sign in."
+    );
   }
 
   await authRepository.recordLogin(user.id);

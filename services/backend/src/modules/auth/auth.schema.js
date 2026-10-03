@@ -118,7 +118,10 @@ const register = {
       phone,
       email: email.optional(),
       password,
-      role: z.enum([userRole.COLLECTOR]).default(userRole.COLLECTOR),
+      // Shared register endpoint: collector app sends COLLECTOR, user app sends USER.
+      role: z
+        .enum([userRole.COLLECTOR, userRole.USER])
+        .default(userRole.COLLECTOR),
     })
     .strict(),
 };
@@ -128,6 +131,11 @@ const login = {
     .object({
       identifier,
       password: z.string().min(1, "Password is required").max(128),
+      // Optional app gate:
+      // collector → COLLECTOR or USER (shared mobile login)
+      // user → USER only
+      // omit → any role (e.g. recycler dashboard)
+      app: z.enum(["collector", "user"]).optional(),
     })
     .strict(),
 };

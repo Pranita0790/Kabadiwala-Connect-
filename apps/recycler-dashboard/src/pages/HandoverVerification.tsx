@@ -24,10 +24,11 @@ import {
   
   import {
     getStoredLots,
+    refreshLotsFromBackend,
     updateLotStatus,
   } from "../data/lotsStore";
   import { confirmHandover } from "../lib/api";
-  import { deriveHandoverPin } from "../lib/handoverPin";
+  import { matchesHandoverPin } from "../lib/handoverPin";
   
   function HandoverVerification() {
     const location = useLocation();
@@ -80,6 +81,10 @@ import {
     ========================== */
   
     useEffect(() => {
+      refreshLotsFromBackend()
+        .then(setLots)
+        .catch(() => setLots(getStoredLots()));
+
       const handleLotsUpdated = () => {
         setLots(getStoredLots());
       };
@@ -143,7 +148,6 @@ import {
         Number(physicalWeight);
 
       const enteredPin = collectorPin.trim();
-      const expectedPin = deriveHandoverPin(lot.id);
 
       if (!/^\d{6}$/.test(enteredPin)) {
         setError(
@@ -152,7 +156,16 @@ import {
         return;
       }
 
-      if (enteredPin !== expectedPin) {
+      // Collector PIN is derived from offline lot UUID (clientReference).
+      // Also accept publicId / lot number for older rows.
+      if (
+        !matchesHandoverPin(
+          enteredPin,
+          lot.clientReference,
+          lot.publicId,
+          lot.id
+        )
+      ) {
         setError(
           "Incorrect collector PIN. Ask the collector to show the PIN from their app."
         );
@@ -203,16 +216,22 @@ import {
       }
   
       try {
-        const handoverRef = lot.publicId || lot.id;
-        try {
-          await confirmHandover(handoverRef);
-        } catch {
-          // Lot status still marks paid for the collector sync path.
-        }
-        const updatedLots = await updateLotStatus(
-          lot.id,
-          "Completed"
-        );
+        // Prefer offline lot UUID so backend finds the collector handover.
+        const handoverRef =
+          lot.clientReference || lot.publicId || lot.id;
+        const finalAmount =
+          lot.estimatedValue != null && Number(lot.estimatedValue) > 0
+            ? Number(lot.estimatedValue)
+            : undefined;
+
+        await confirmHandover(handoverRef, {
+          completeBoth: true,
+          paymentMethod,
+          finalAmount,
+        });
+
+        // Status is usually set by confirm; refresh UI from backend.
+        const updatedLots = await updateLotStatus(lot.id, "Completed");
         setLots(updatedLots);
         setCompleted(true);
       } catch (err) {

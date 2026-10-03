@@ -36,7 +36,7 @@ has exactly one role.
 | `password_hash`  | TEXT          | nullable — Firebase phone accounts have none                  |
 | `firebase_uid`   | TEXT          | nullable, see below                                          |
 | `full_name`      | TEXT          | NOT NULL                                                     |
-| `role`           | TEXT          | `COLLECTOR` \| `RECYCLER` \| `ADMIN`                         |
+| `role`           | TEXT          | `COLLECTOR` \| `USER` \| `RECYCLER` \| `ADMIN`               |
 | `is_active`      | BOOLEAN       | default TRUE                                                 |
 | `is_verified`    | BOOLEAN       | default FALSE; phone sign-in sets TRUE                       |
 | `last_login_at`  | TIMESTAMPTZ   | nullable                                                     |

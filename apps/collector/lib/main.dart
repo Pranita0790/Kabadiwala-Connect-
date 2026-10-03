@@ -13,6 +13,7 @@ import 'screens/auth/sign_up_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'screens/auth/otp_verification_screen.dart';
 import 'screens/auth/profile_setup_screen.dart';
+import 'screens/ai/ai_analyzer_screen.dart';
 import 'screens/camera/camera_screen.dart';
 import 'screens/earnings/earnings_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -20,14 +21,24 @@ import 'screens/lot/create_lot_screen.dart';
 import 'screens/prices/prices_screen.dart';
 import 'screens/profile/edit_profile_screen.dart';
 import 'screens/profile/profile_screen.dart';
-import 'screens/splash/splash_screen.dart';
 import 'screens/lot/lot_details_screen.dart';
 import 'screens/recycler/recycler_handover_screen.dart';
 import 'screens/recycler/recycler_matching_screen.dart';
 import 'screens/handover/handover_qr_screen.dart';
 import 'screens/safety/safety_screen.dart';
 import 'screens/notifications/notifications_screen.dart';
+import 'screens/customers/customers_screen.dart';
+import 'screens/customers/customer_details_screen.dart';
+import 'screens/requests/requests_screen.dart';
+import 'screens/requests/request_details_screen.dart';
+import 'screens/collection/collection_screen.dart';
+import 'screens/collection/payment_screen.dart';
+import 'screens/collection/collection_completed_screen.dart';
+import 'screens/rates/my_rate_card_screen.dart';
+import 'screens/rates/edit_rate_screen.dart';
 import 'models/e_waste_lot.dart';
+import 'models/pickup_request.dart';
+import 'models/collector_rate.dart';
 import 'models/recycler.dart';
 
 import 'repositories/lot_repository.dart';
@@ -35,6 +46,7 @@ import 'repositories/price_repository.dart';
 import 'repositories/transaction_repository.dart';
 import 'services/connectivity_service.dart';
 import 'services/database_service.dart';
+import 'services/backend_url.dart';
 import 'services/notification_service.dart';
 import 'services/sync_service.dart';
 
@@ -48,6 +60,7 @@ void main() async {
   // Initialize persisted language preference from SQLite
   final localeController = LocaleController.instance;
   await localeController.initialize();
+  await BackendUrl.loadFromDatabase();
 
   // Initialize auth session state from SQLite
   final authController = AuthController.instance;
@@ -218,23 +231,15 @@ class KabadiwalaConnectApp extends StatelessWidget {
                     authController: auth,
                   ),
                 );
-              case '/splash':
-                return MaterialPageRoute(
-                  settings: settings,
-                  builder: (context) => SplashScreen(
-                    onInitializationComplete: () {
-                      if (auth.isAuthenticated) {
-                        Navigator.pushReplacementNamed(context, '/');
-                      } else {
-                        Navigator.pushReplacementNamed(context, '/');
-                      }
-                    },
-                  ),
-                );
               case '/camera':
                 return MaterialPageRoute(
                   settings: settings,
                   builder: (context) => const CameraScreen(),
+                );
+              case '/ai-analyzer':
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => const AiAnalyzerScreen(),
                 );
               case '/create-lot':
                 return MaterialPageRoute(
@@ -312,6 +317,61 @@ class KabadiwalaConnectApp extends StatelessWidget {
                 return MaterialPageRoute(
                   settings: settings,
                   builder: (context) => EarningsScreen(repository: transactionRepository),
+                );
+              case '/requests':
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => const RequestsScreen(),
+                );
+              case '/request-details':
+                final requestId = settings.arguments as String;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => RequestDetailsScreen(requestId: requestId),
+                );
+              case '/customers':
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => const CustomersScreen(),
+                );
+              case '/customer-details':
+                final customerId = settings.arguments as String;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => CustomerDetailsScreen(customerId: customerId),
+                );
+              case '/my-rate-card':
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => const MyRateCardScreen(),
+                );
+              case '/edit-rate':
+                final existingRate = settings.arguments as CollectorRate?;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => EditRateScreen(existingRate: existingRate),
+                );
+              case '/collection':
+                final collectionId = settings.arguments as String;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => CollectionScreen(requestId: collectionId),
+                );
+              case '/payment':
+                final payArgs = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => PaymentScreen(
+                    requestId: payArgs['requestId'] as String,
+                    actualWeightKg: (payArgs['actualWeightKg'] as num).toDouble(),
+                    finalAmount: (payArgs['finalAmount'] as num).toDouble(),
+                  ),
+                );
+              case '/collection-completed':
+                final completed = settings.arguments as PickupRequest;
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => CollectionCompletedScreen(request: completed),
                 );
               default:
                 return MaterialPageRoute(
