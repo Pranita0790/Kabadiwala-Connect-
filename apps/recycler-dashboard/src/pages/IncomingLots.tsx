@@ -146,14 +146,6 @@ function IncomingLots() {
 
         <div>
 
-          <p className="breadcrumb">
-            Recycler Portal / Operations
-          </p>
-
-          <h2>
-            Incoming Lots
-          </h2>
-
           <p>
             Review collection requests received from
             registered collectors.

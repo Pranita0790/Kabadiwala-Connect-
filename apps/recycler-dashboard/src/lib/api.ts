@@ -1,6 +1,6 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ??
-  "http://10.1.106.69:5000/api";
+  "http://localhost:5001/api";
 
 const TOKEN_KEY = "kabadiwala-access-token";
 const REFRESH_KEY = "kabadiwala-refresh-token";
@@ -132,7 +132,7 @@ export async function apiFetch<T = unknown>(
     });
   } catch {
     throw new Error(
-      "Cannot reach backend. Confirm the API is running on http://localhost:5000."
+      "Cannot reach backend. Confirm the API is running on http://localhost:5001."
     );
   }
 

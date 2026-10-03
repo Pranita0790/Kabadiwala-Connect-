@@ -843,25 +843,67 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Total Earnings Summary Card
-              Card(
-                color: AppColors.primaryDark,
+              // Total Earnings Summary Card (Claymorphic Elevated Forest Gradient)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF0E382B),
+                      Color(0xFF08261C),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: Colors.white.withAlpha(50), width: 1.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x400E382B),
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(20.0),
+                  padding: const EdgeInsets.all(22.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        loc.translate('totalEarnings'),
-                        style: const TextStyle(color: Colors.white70, fontSize: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            loc.translate('totalEarnings'),
+                            style: const TextStyle(color: Color(0xFFD8F870), fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD8F870).withAlpha(40),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFD8F870).withAlpha(80)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.trending_up_rounded, size: 14, color: Color(0xFFD8F870)),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Live Ledger',
+                                  style: TextStyle(color: Color(0xFFD8F870), fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Text(
                         Formatters.currency(_totalEarnings),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 34,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
                         ),
                       ),
                       const Divider(color: Colors.white24, height: 24),
@@ -870,21 +912,28 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             '${loc.translate('recordedLots')}: ${_lots.length}',
-                            style: const TextStyle(color: Colors.white, fontSize: 15),
+                            style: const TextStyle(color: Color(0xFFE2F4EC), fontSize: 14.5, fontWeight: FontWeight.w600),
                           ),
                           if (_pendingCount > 0)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: AppColors.syncPending,
-                                borderRadius: BorderRadius.circular(8),
+                                color: const Color(0xFFD97706),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x33000000),
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
                               ),
                               child: Text(
                                 '${loc.translate('pendingSync')}: $_pendingCount',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                             ),
@@ -894,7 +943,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
 
               // Primary Action: Create Material Lot
               CustomButton(
@@ -1003,40 +1052,66 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemCount: _lots.length,
                   itemBuilder: (context, index) {
                     final lot = _lots[index];
-                    return Card(
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(12),
-                        leading: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.cardBorder, width: 1.5),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x10134233),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
                           ),
-                          child: const Icon(Icons.recycling, color: AppColors.primary, size: 30),
-                        ),
-                        title: Text(
-                          lot.categoryName,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Text('${Formatters.weight(lot.weightKg)} • ${lot.condition.toUpperCase()}'),
-                            const SizedBox(height: 2),
-                            Text(
-                              Formatters.priceRange(lot.estimatedMinPrice, lot.estimatedMaxPrice),
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        clipBehavior: Clip.antiAlias,
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          leading: Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFA7F3D0)),
                             ),
-                          ],
+                            child: const Icon(Icons.recycling_rounded, color: AppColors.primary, size: 28),
+                          ),
+                          title: Text(
+                            lot.categoryName,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.primary),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(
+                                '${Formatters.weight(lot.weightKg)} • ${lot.condition.toUpperCase()}',
+                                style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF648175), fontSize: 13),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                Formatters.priceRange(lot.estimatedMinPrice, lot.estimatedMaxPrice),
+                                style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primary, fontSize: 15),
+                              ),
+                            ],
+                          ),
+                          trailing: SyncBadge(syncStatus: lot.syncStatus),
+                          onTap: () async {
+                            await Navigator.pushNamed(context, '/lot-details', arguments: lot);
+                            _loadLots();
+                            _loadEarnings();
+                          },
                         ),
-                        trailing: SyncBadge(syncStatus: lot.syncStatus),
-                        onTap: () async {
-                          await Navigator.pushNamed(context, '/lot-details', arguments: lot);
-                          _loadLots();
-                          _loadEarnings();
-                        },
                       ),
                     );
                   },

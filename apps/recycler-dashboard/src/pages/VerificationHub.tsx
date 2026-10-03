@@ -44,7 +44,6 @@ export default function VerificationHub() {
     <section className="page-content verification-hub">
       <div className="page-toolbar">
         <div>
-          <h3>Handover verification</h3>
           <p>
             Confirm physical delivery for accepted lots. Complete verification
             to move a lot to Completed and create settlement records.

@@ -273,7 +273,7 @@ function Dashboard({
           </h4>
 
           <span className="stat-change">
-            Completed lots
+            Successfully processed
           </span>
 
         </div>
@@ -832,41 +832,23 @@ function App() {
      ========================================================= */
 
   const getBreadcrumb = () => {
-
-    if (isVerification || isVerificationHub) {
-      return "Operations / Handover Verification";
-    }
-
-    if (isLotDetails) {
-      return "Operations / Lot Details";
-    }
-
-    if (isIncomingLots) {
+    if (isVerification || isVerificationHub || isLotDetails || isIncomingLots) {
       return "Operations";
     }
 
-    if (isTransactions) {
+    if (isTransactions || isRateBoard) {
       return "Finance";
     }
 
     if (isTraceability) {
-      return "Traceability";
+      return "Material Intelligence";
     }
 
-    if (isRateBoard) {
-      return "Finance / Rate Board";
-    }
-
-    if (isSettings) {
-      return "Account / Settings";
-    }
-
-    if (isNotifications) {
-      return "Account / Notifications";
+    if (isSettings || isNotifications) {
+      return "Account";
     }
 
     return "Overview";
-
   };
 
 

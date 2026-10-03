@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../models/e_waste_lot.dart';
 import '../../models/recycler.dart';
@@ -827,10 +828,52 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Background Grid Lines
+                  // MapTiler Real Streets Map Tile Layer
                   Positioned.fill(
-                    child: CustomPaint(
-                      painter: _RadarGridPainter(),
+                    child: Image.network(
+                      AppConstants.mapTilerStaticMapUrl(),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return CustomPaint(
+                          painter: _RadarGridPainter(),
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Contrast Overlay for Node Visibility
+                  Positioned.fill(
+                    child: Container(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.45),
+                    ),
+                  ),
+
+                  // MapTiler Streets API Badge
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.map_rounded, color: AppColors.accent, size: 12),
+                          SizedBox(width: 4),
+                          Text(
+                            'MapTiler Streets Active',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
@@ -1114,7 +1157,7 @@ class _ViewToggleButton extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
@@ -1124,16 +1167,20 @@ class _ViewToggleButton extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 16,
+              size: 14,
               color: isSelected ? Colors.white : Colors.grey.shade700,
             ),
             const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? Colors.white : Colors.grey.shade700,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                ),
               ),
             ),
           ],

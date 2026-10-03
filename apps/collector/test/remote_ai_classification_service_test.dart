@@ -62,7 +62,7 @@ void main() {
       final capturing = _CapturingClient(mockClient);
 
       final service = RemoteAiClassificationService(
-        baseUrl: 'http://localhost:5000',
+        baseUrl: 'http://localhost:5001',
         client: capturing,
       );
 
@@ -94,7 +94,7 @@ void main() {
       });
 
       final service = RemoteAiClassificationService(
-        baseUrl: 'http://localhost:5000',
+        baseUrl: 'http://localhost:5001',
         client: mockClient,
       );
 
@@ -128,7 +128,7 @@ void main() {
           );
         });
         final service = RemoteAiClassificationService(
-          baseUrl: 'http://localhost:5000',
+          baseUrl: 'http://localhost:5001',
           client: mockClient,
         );
         return service.classifyEWasteImage(dummyFile.path);
@@ -166,7 +166,7 @@ void main() {
       });
 
       final service = RemoteAiClassificationService(
-        baseUrl: 'http://localhost:5000',
+        baseUrl: 'http://localhost:5001',
         client: mockClient,
       );
 
@@ -183,7 +183,7 @@ void main() {
       });
 
       final service = RemoteAiClassificationService(
-        baseUrl: 'http://localhost:5000',
+        baseUrl: 'http://localhost:5001',
         client: mockClient,
       );
 
@@ -197,7 +197,7 @@ void main() {
       });
 
       final service = RemoteAiClassificationService(
-        baseUrl: 'http://localhost:5000',
+        baseUrl: 'http://localhost:5001',
         client: mockClient,
       );
 
@@ -211,7 +211,7 @@ void main() {
       });
 
       final service = RemoteAiClassificationService(
-        baseUrl: 'http://localhost:5000',
+        baseUrl: 'http://localhost:5001',
         client: mockClient,
       );
 
@@ -221,7 +221,7 @@ void main() {
 
     test('returns null when image file does not exist', () async {
       final service = RemoteAiClassificationService(
-        baseUrl: 'http://localhost:5000',
+        baseUrl: 'http://localhost:5001',
       );
 
       final result = await service.classifyEWasteImage('/nonexistent/path/image.jpg');

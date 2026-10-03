@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-foreach ($port in @(5000, 8000)) {
+foreach ($port in @(5001, 8000)) {
   $name = "Kabadiwala Port $port"
   netsh advfirewall firewall delete rule name="$name" | Out-Null
   netsh advfirewall firewall add rule `
@@ -18,7 +18,7 @@ foreach ($port in @(5000, 8000)) {
 
 Write-Host ""
 Write-Host "Done. Phone can now reach:"
-Write-Host "  Backend  http://<your-wifi-ip>:5000"
+Write-Host "  Backend  http://<your-wifi-ip>:5001"
 Write-Host "  AI       http://<your-wifi-ip>:8000  (optional; app uses backend gateway)"
 Write-Host ""
 Write-Host "Your current Wi-Fi IPv4:"

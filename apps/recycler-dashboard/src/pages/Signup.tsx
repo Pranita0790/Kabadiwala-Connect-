@@ -1,12 +1,19 @@
 import { FormEvent, useState } from "react";
 import {
+  BatteryCharging,
   Building2,
+  Cpu,
+  Laptop,
+  Leaf,
   Lock,
   Mail,
   MapPin,
   Phone,
   Recycle,
+  Smartphone,
+  Sparkles,
   User,
+  Zap,
 } from "lucide-react";
 import { loginWithPassword, registerRecyclerAccount } from "../lib/api";
 
@@ -84,10 +91,35 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
   return (
     <div className="auth-shell">
       <div className="auth-hero">
-        <div className="auth-hero-badge">
-          <Recycle size={28} />
+        {/* Floating 3D Clay Objects & Capsules */}
+        <div className="clay-floating-pill clay-float-phone" aria-hidden="true">
+          <Smartphone size={16} />
+          <span>Old phone</span>
         </div>
-        <h1>Join the formal network.</h1>
+        <div className="clay-floating-pill clay-float-battery" aria-hidden="true">
+          <BatteryCharging size={16} />
+          <span>Battery</span>
+        </div>
+        <div className="clay-floating-pill clay-float-laptop" aria-hidden="true">
+          <Laptop size={16} />
+          <span>Laptop</span>
+        </div>
+        <div className="clay-floating-pill clay-float-circuit" aria-hidden="true">
+          <Cpu size={16} />
+          <span>Circuit board</span>
+        </div>
+        <div className="clay-floating-pill clay-float-charger" aria-hidden="true">
+          <Zap size={16} />
+          <span>Charger</span>
+        </div>
+
+        <div className="auth-hero-badge">
+          <Recycle size={32} />
+        </div>
+        <h1>
+          Join the formal <br />
+          <em>circular network.</em>
+        </h1>
         <p>
           Register your facility once. Collectors find you. Lots, handover,
           and settlement stay in one quiet workspace.

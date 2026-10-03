@@ -2,17 +2,35 @@ class AppConstants {
   static const String appName = 'Kabadiwala Connect';
 
   /// Override at build/run time if your Wi-Fi IP changes:
-  /// `--dart-define=BACKEND_URL=http://YOUR_IP:5000`
-  /// `--dart-define=API_BASE_URL=http://YOUR_IP:5000/api`
+  /// `--dart-define=BACKEND_URL=http://YOUR_IP:5001`
+  /// `--dart-define=API_BASE_URL=http://YOUR_IP:5001/api`
   static const String backendBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'http://10.1.106.69:5000',
+    defaultValue: 'http://localhost:5001',
   );
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.1.106.69:5000/api',
+    defaultValue: 'http://localhost:5001/api',
   );
+
+  static const String mapTilerApiKey = String.fromEnvironment(
+    'MAPTILER_API_KEY',
+    defaultValue: 'FD3r2uqNKjpGbL5UHaFm',
+  );
+
+  static const String mapTilerTileUrl =
+      'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$mapTilerApiKey';
+
+  static String mapTilerStaticMapUrl({
+    double lat = 18.5204,
+    double lng = 73.8567,
+    int zoom = 12,
+    int width = 800,
+    int height = 800,
+  }) {
+    return 'https://api.maptiler.com/maps/streets-v2/static/$lng,$lat,$zoom/${width}x$height.png?key=$mapTilerApiKey';
+  }
 
   static const String appVersion = '1.0.0';
 
