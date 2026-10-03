@@ -85,7 +85,8 @@ class KabadiwalaConnectUserApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          initialRoute: '/splash',
+          // Open the user dashboard directly for the current demo flow.
+          initialRoute: '/home',
           routes: {
             '/splash': (context) => SplashScreen(
                   onInitializationComplete: () {
