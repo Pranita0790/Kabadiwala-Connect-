@@ -1,13 +1,21 @@
 import 'dart:async';
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/custom_button.dart';
 
-/// Simple 6-digit OTP Verification Screen.
-/// Low-literacy friendly with auto-advance digit boxes, 30s resend timer,
-/// demo OTP autofill, and error handling.
+/// 6-digit SMS code entry.
+///
+/// Low-literacy friendly with auto-advance digit boxes and a resend countdown.
+///
+/// WHO SENDS AND CHECKS THE CODE
+///
+/// Firebase, not this app. Firebase sends the SMS and verifies the code, then
+/// hands the device an ID token which the backend verifies in exchange for a
+/// session. The code itself is never sent to the backend and never logged.
 class OtpVerificationScreen extends StatefulWidget {
   final String? phoneNumber;
   final AuthController? authController;
@@ -82,21 +90,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
   }
 
-  String get _enteredOtp {
-    return _digitControllers.map((c) => c.text.trim()).join();
+  /// Empty every box and return focus to the first one.
+  void _clearDigits() {
+    for (final controller in _digitControllers) {
+      controller.clear();
+    }
+
+    if (mounted) {
+      setState(() {});
+      _focusNodes.first.requestFocus();
+    }
   }
 
-  void _fillDemoOtp() {
-    const demo = '123456';
-    for (int i = 0; i < 6; i++) {
-      _digitControllers[i].text = demo[i];
-    }
-    setState(() {
-      _errorMessage = null;
-    });
-    if (_focusNodes.last.canRequestFocus) {
-      _focusNodes.last.requestFocus();
-    }
+  String get _enteredOtp {
+    return _digitControllers.map((c) => c.text.trim()).join();
   }
 
   Future<void> _handleResendOtp() async {
@@ -180,14 +187,33 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           );
         }
       } else {
+        /*
+         | The controller now reports a specific reason — wrong code, expired
+         | session, no network, deactivated account, server misconfigured.
+         | Showing "incorrect OTP" for all of them would send a collector with
+         | no signal to re-enter a code that was never wrong.
+         */
         setState(() {
-          _errorMessage = loc.translate('incorrectOtp');
+          _errorMessage = loc.translate(
+            _authController.errorMessage ?? 'authErrorInvalidCode',
+          );
         });
+
+        // A dead Firebase session cannot be resumed by retyping the code.
+        if (_authController.errorMessage == 'authErrorSessionExpired') {
+          _clearDigits();
+        }
       }
-    } catch (e) {
+    } catch (error) {
+      developer.log(
+        'Sign-in failed',
+        name: 'collector.auth',
+        error: error,
+      );
+
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = loc.translate('authErrorUnknown');
         });
       }
     } finally {
@@ -382,38 +408,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
               const SizedBox(height: 20),
 
-              // Demo OTP Quick Auto-fill Chip
-              InkWell(
-                onTap: _fillDemoOtp,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.secondary.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.pin_rounded, color: AppColors.secondary, size: 18),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          '${loc.translate('demoOtpHide')} (Tap to fill)',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.secondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
+const SizedBox(height: 24),
 
               // Resend OTP / Timer
               Row(

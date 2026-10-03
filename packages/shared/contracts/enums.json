@@ -1,0 +1,81 @@
+{
+  "$comment": "Canonical enum vocabulary for Kabadiwala Connect. Consumed by the Node.js backend (CommonJS require) and readable by the React dashboard (Vite JSON import). Any change here is an API contract change: update docs/api/api-contract.md in the same change (AGENTS.md section 5).",
+  "version": "1.0.0",
+  "userRole": {
+    "COLLECTOR": "COLLECTOR",
+    "RECYCLER": "RECYCLER",
+    "ADMIN": "ADMIN"
+  },
+  "lotStatus": {
+    "PENDING": "PENDING",
+    "ACCEPTED": "ACCEPTED",
+    "REJECTED": "REJECTED",
+    "HANDOVER": "HANDOVER",
+    "COMPLETED": "COMPLETED"
+  },
+  "lotStatusLegacyLabel": {
+    "$comment": "Title-cased labels kept only for backward compatibility with the deployed Recycler Dashboard, which matches on these exact strings.",
+    "PENDING": "Pending",
+    "ACCEPTED": "Accepted",
+    "REJECTED": "Rejected",
+    "HANDOVER": "Handover",
+    "COMPLETED": "Completed"
+  },
+  "syncStatus": {
+    "PENDING_SYNC": "PENDING_SYNC",
+    "SYNCING": "SYNCING",
+    "SYNCED": "SYNCED",
+    "FAILED": "FAILED"
+  },
+  "handoverStatus": {
+    "PENDING_CONFIRMATION": "PENDING_CONFIRMATION",
+    "CONFIRMED": "CONFIRMED",
+    "CANCELLED": "CANCELLED"
+  },
+  "paymentStatus": {
+    "PENDING": "PENDING",
+    "PAID": "PAID",
+    "FAILED": "FAILED",
+    "DISPUTED": "DISPUTED"
+  },
+  "notificationType": {
+    "HANDOVER_CONFIRMED": "HANDOVER_CONFIRMED",
+    "PRICE_ALERT": "PRICE_ALERT",
+    "LOT_STATUS": "LOT_STATUS",
+    "EPR": "EPR",
+    "SYSTEM": "SYSTEM"
+  },
+  "materialClass": {
+    "PCB": "pcb",
+    "BATTERY": "battery",
+    "CRT": "crt",
+    "LCD_PANEL": "lcd_panel",
+    "CABLE": "cable",
+    "MOTOR": "motor",
+    "MAGNET_BEARING_ASSEMBLY": "magnet_bearing_assembly",
+    "MIXED_PLASTICS": "mixed_plastics",
+    "UNKNOWN": "unknown"
+  },
+  "materialCondition": {
+    "SCRAP": "Scrap",
+    "GOOD": "Good",
+    "PARTIAL": "Partial"
+  },
+  "traceabilityStage": {
+    "COLLECTION": "Collection",
+    "VERIFICATION": "Verification",
+    "HANDOVER": "Handover",
+    "PROCESSING": "Processing",
+    "COMPLETED": "Completed"
+  },
+  "traceabilityEventStatus": {
+    "COMPLETED": "completed",
+    "CURRENT": "current",
+    "PENDING": "pending"
+  },
+  "deployedModel": {
+    "modelVersion": "sih-5class-v1",
+    "confidenceThreshold": 0.6,
+    "supportedMaterials": ["pcb", "battery", "crt", "lcd_panel", "cable"]
+  }
+}

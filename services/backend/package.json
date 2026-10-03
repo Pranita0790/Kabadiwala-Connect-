@@ -1,24 +1,43 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/server.js"
+  "name": "@kabadiwala/backend",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Kabadiwala Connect API gateway: REST APIs, auth, business rules, PostgreSQL persistence, sync and traceability.",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node src/db/migrate.js up",
+    "migrate:status": "node src/db/migrate.js status",
+    "migrate:reset": "node src/db/migrate.js reset",
+    "seed": "node scripts/seed.js",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --runInBand"
+  },
+  "keywords": [
+    "kabadiwala",
+    "ewaste",
+    "traceability"
+  ],
+  "license": "UNLICENSED",
   "type": "commonjs",
   "dependencies": {
     "axios": "^1.6.0",
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.6",
     "dotenv": "^18.0.4",
     "express": "^5.2.1",
     "form-data": "^4.0.0",
-    "multer": "^1.4.5-lts.1",
-    "pg": "^8.23.0"
+    "helmet": "^8.1.0",
+    "jose": "^5.10.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.4.0",
+    "pg": "^8.23.0",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "jest": "^30.5.2",

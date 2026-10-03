@@ -164,10 +164,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     });
 
     try {
+      /*
+       | Role is not chosen here. The backend assigned it when the phone
+       | number was linked to an account, and letting the client pick would
+       | let any collector claim to be a recycler.
+       */
       await _authController.completeProfile(
         name: name,
         city: city,
-        role: _selectedRole,
         photoPath: _photoPath,
       );
 

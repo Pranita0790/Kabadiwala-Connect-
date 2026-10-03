@@ -24,9 +24,16 @@ class UserProfile {
     this.role = 'collector',
     this.photoPath,
     this.isProfileComplete = true,
+    this.backendUserId,
     required this.createdAt,
     required this.updatedAt,
   });
+
+  /// The backend's user id, from `POST /api/auth/firebase/sign-in`.
+  ///
+  /// Null until the first successful sign-in. Needed so API calls can name
+  /// this collector to the server while the device is offline.
+  final String? backendUserId;
 
   /// Factory to create a new user profile with a generated UUID
   factory UserProfile.create({
@@ -38,6 +45,7 @@ class UserProfile {
     String role = 'collector',
     String? photoPath,
     bool isProfileComplete = true,
+    String? backendUserId,
   }) {
     final now = DateTime.now();
     return UserProfile(
@@ -49,6 +57,7 @@ class UserProfile {
       role: role,
       photoPath: photoPath,
       isProfileComplete: isProfileComplete,
+      backendUserId: backendUserId,
       createdAt: now,
       updatedAt: now,
     );
@@ -66,6 +75,7 @@ class UserProfile {
       role: 'collector',
       photoPath: null,
       isProfileComplete: true,
+      backendUserId: null,
       createdAt: now,
       updatedAt: now,
     );
@@ -103,6 +113,7 @@ class UserProfile {
       'role': role,
       'photo_path': photoPath,
       'is_profile_complete': isProfileComplete ? 1 : 0,
+      'backend_user_id': backendUserId,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -114,6 +125,7 @@ class UserProfile {
       name: map['name'] as String? ?? '',
       phoneNumber: map['phone_number'] as String? ?? '',
       passwordHash: map['password_hash'] as String?,
+      backendUserId: map['backend_user_id'] as String?,
       city: map['city'] as String? ?? '',
       role: map['role'] as String? ?? 'collector',
       photoPath: map['photo_path'] as String?,
@@ -132,6 +144,7 @@ class UserProfile {
     String? role,
     String? photoPath,
     bool? isProfileComplete,
+    String? backendUserId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -144,6 +157,7 @@ class UserProfile {
       role: role ?? this.role,
       photoPath: photoPath ?? this.photoPath,
       isProfileComplete: isProfileComplete ?? this.isProfileComplete,
+      backendUserId: backendUserId ?? this.backendUserId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
