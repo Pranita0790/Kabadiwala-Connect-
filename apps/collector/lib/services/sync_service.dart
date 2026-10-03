@@ -131,6 +131,12 @@ class SyncService {
     int failCount = 0;
 
     try {
+      // Refresh an expired access token before uploading pending records.
+      final remote = _apiService;
+      if (remote is RemoteApiService) {
+        await remote.refreshAccessToken();
+      }
+
       final pendingLots = await _dbService.getPendingSyncLots();
       final pendingHandovers = await _dbService.getPendingSyncHandovers();
       final totalRecords = pendingLots.length + pendingHandovers.length;
@@ -141,7 +147,7 @@ class SyncService {
         return SyncResult(total: 0, successful: 0, failed: 0, isOffline: false);
       }
 
-      // 1. Sync pending lots
+      // 1. Sync pending lots first — handovers require the lot on the server.
       for (final lot in pendingLots) {
         await _dbService.updateSyncStatus(lot.id, AppConstants.syncSyncing);
 
@@ -169,6 +175,16 @@ class SyncService {
         );
 
         try {
+          // Handover create 404s if the lot UUID is only known as client_reference
+          // and the lot row is missing — re-upsert the linked lot first.
+          final linkedLot = await _dbService.getLot(handover.lotId);
+          if (linkedLot != null) {
+            final lotRes = await _apiService.uploadLot(linkedLot);
+            if (lotRes.success) {
+              await _dbService.markAsSynced(linkedLot.id);
+            }
+          }
+
           final response = await _apiService.uploadHandover(handover);
 
           if (response.success) {
@@ -176,6 +192,10 @@ class SyncService {
               handover.id,
               AppConstants.syncSynced,
             );
+            if (handover.status == AppConstants.handoverConfirmed ||
+                handover.status == 'CONFIRMED') {
+              await _apiService.confirmHandoverOnBackend(handover.id);
+            }
             successCount++;
           } else {
             await _dbService.updateHandoverSyncStatus(

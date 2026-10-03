@@ -48,7 +48,7 @@ router.use(requireAuth());
 // POST /api/lots/sync
 router.post(
   "/sync",
-  requireRole(userRole.COLLECTOR, userRole.ADMIN),
+  requireRole(userRole.COLLECTOR, userRole.RECYCLER, userRole.ADMIN),
   validate(schemas.sync),
   asyncHandler(async (req, res) => {
     const { items, conflictStrategy } = req.body;
@@ -71,7 +71,7 @@ router.post(
 // POST /api/lots
 router.post(
   "/",
-  requireRole(userRole.COLLECTOR, userRole.ADMIN),
+  requireRole(userRole.COLLECTOR, userRole.RECYCLER, userRole.ADMIN),
   validate(schemas.create),
   asyncHandler(async (req, res) => {
     const { lot, created, warnings } = await service.create(req.body, req.user);

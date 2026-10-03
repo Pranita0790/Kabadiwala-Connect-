@@ -1,7 +1,9 @@
 import 'package:uuid/uuid.dart';
 import '../core/constants/app_constants.dart';
 import '../models/e_waste_lot.dart';
+import '../services/connectivity_service.dart';
 import '../services/database_service.dart';
+import '../services/sync_service.dart';
 
 class LotRepository {
   final DatabaseService _dbService;
@@ -43,6 +45,14 @@ class LotRepository {
 
     // Save to local SQLite database
     await _dbService.insertLot(lot);
+
+    // Best-effort push so Recycler Incoming Lots can see it quickly.
+    final online = await ConnectivityService.instance.isConnected();
+    if (online) {
+      // ignore: unawaited_futures
+      SyncService.getInstance().syncPendingRecords();
+    }
+
     return lot;
   }
 

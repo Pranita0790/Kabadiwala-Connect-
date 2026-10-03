@@ -37,7 +37,13 @@ function corsOptionsDelegate(origin, callback) {
 const corsMiddleware = cors({
   origin: corsOptionsDelegate,
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Request-Id",
+    "Cache-Control",
+    "Pragma",
+  ],
   exposedHeaders: ["X-Request-Id", "RateLimit-Limit", "RateLimit-Remaining"],
   credentials: false,
   maxAge: 86_400,

@@ -5,6 +5,7 @@ from app.services.rate_card import get_material_rate
 
 def estimate_weight(
     weight_kg: float | None = None,
+    method: str | None = None,
 ) -> WeightEstimate:
 
     if weight_kg is None:
@@ -14,10 +15,13 @@ def estimate_weight(
             method="not_available",
         )
 
+    resolved_method = method or "user_provided"
+    confidence = 1.0 if resolved_method == "user_provided" else 0.55
+
     return WeightEstimate(
         estimated_weight_kg=weight_kg,
-        confidence=1.0,
-        method="user_provided",
+        confidence=confidence,
+        method=resolved_method,
     )
 
 

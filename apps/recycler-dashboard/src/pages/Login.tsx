@@ -1,12 +1,13 @@
 import { FormEvent, useState } from "react";
-import { Recycle } from "lucide-react";
+import { Building2, Lock, Phone, Recycle } from "lucide-react";
 import { loginWithPassword } from "../lib/api";
 
 type LoginProps = {
   onSuccess: () => void;
+  onSwitchToSignup: () => void;
 };
 
-export default function Login({ onSuccess }: LoginProps) {
+export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -18,10 +19,7 @@ export default function Login({ onSuccess }: LoginProps) {
     setLoading(true);
 
     try {
-      const result = await loginWithPassword(
-        identifier.trim(),
-        password
-      );
+      const result = await loginWithPassword(identifier.trim(), password);
 
       if (!result.success) {
         setError(result.message || "Login failed");
@@ -31,9 +29,7 @@ export default function Login({ onSuccess }: LoginProps) {
       onSuccess();
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to reach the backend"
+        err instanceof Error ? err.message : "Unable to reach the backend"
       );
     } finally {
       setLoading(false);
@@ -41,169 +37,90 @@ export default function Login({ onSuccess }: LoginProps) {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background:
-          "linear-gradient(160deg, #e8f5ef 0%, #f7faf8 45%, #eef6f2 100%)",
-        padding: "24px",
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "#fff",
-          border: "1px solid #d7e5dd",
-          borderRadius: 16,
-          padding: "32px 28px",
-          boxShadow: "0 12px 40px rgba(20, 60, 40, 0.08)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 20,
-          }}
-        >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: "#0f6b4c",
-              display: "grid",
-              placeItems: "center",
-              color: "#fff",
-            }}
+    <div className="auth-shell">
+      <div className="auth-hero">
+        <div className="auth-hero-badge">
+          <Recycle size={28} />
+        </div>
+        <h1>Formal recycling, quietly run.</h1>
+        <p>
+          One portal for incoming lots, QR handover, settlement, and rate
+          intelligence — built for authorised recyclers.
+        </p>
+        <ul className="auth-hero-list">
+          <li>Review collector lots in real time</li>
+          <li>Accept, reject, and complete handovers</li>
+          <li>Track settlements and rate board updates</li>
+        </ul>
+      </div>
+
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <div className="auth-tabs">
+          <button type="button" className="auth-tab active">
+            Sign in
+          </button>
+          <button
+            type="button"
+            className="auth-tab"
+            onClick={onSwitchToSignup}
           >
-            <Recycle size={22} />
-          </div>
-          <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 22,
-                color: "#123528",
-              }}
-            >
-              Kabadiwala Connect
-            </h1>
-            <p
-              style={{
-                margin: "4px 0 0",
-                color: "#52756a",
-                fontSize: 14,
-              }}
-            >
-              Recycler dashboard sign-in
-            </p>
-          </div>
+            Sign up
+          </button>
         </div>
 
-        <label
-          style={{
-            display: "block",
-            fontSize: 13,
-            color: "#35584b",
-            marginBottom: 6,
-          }}
-        >
+        <h2>Welcome back</h2>
+        <p className="auth-subtitle">
+          Sign in with your recycler organisation account.
+        </p>
+
+        <label className="auth-label">
+          <Phone size={15} />
           Phone or email
         </label>
         <input
+          className="auth-input"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
           placeholder="9876543210 or you@facility.com"
           required
-          style={{
-            width: "100%",
-            marginBottom: 14,
-            padding: "12px 14px",
-            borderRadius: 10,
-            border: "1px solid #c9ddd2",
-            fontSize: 15,
-          }}
+          autoComplete="username"
         />
 
-        <label
-          style={{
-            display: "block",
-            fontSize: 13,
-            color: "#35584b",
-            marginBottom: 6,
-          }}
-        >
+        <label className="auth-label">
+          <Lock size={15} />
           Password
         </label>
         <input
+          className="auth-input"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="At least 8 characters"
           required
           minLength={8}
-          style={{
-            width: "100%",
-            marginBottom: 18,
-            padding: "12px 14px",
-            borderRadius: 10,
-            border: "1px solid #c9ddd2",
-            fontSize: 15,
-          }}
+          autoComplete="current-password"
         />
 
-        {error ? (
-          <p
-            style={{
-              color: "#b42318",
-              background: "#fff1f0",
-              border: "1px solid #f3c1bc",
-              borderRadius: 8,
-              padding: "10px 12px",
-              fontSize: 13,
-              marginBottom: 14,
-            }}
-          >
-            {error}
-          </p>
-        ) : null}
+        {error ? <p className="auth-error">{error}</p> : null}
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            border: "none",
-            borderRadius: 10,
-            background: loading ? "#6f9f8a" : "#0f6b4c",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: 15,
-            cursor: loading ? "wait" : "pointer",
-          }}
-        >
-          {loading ? "Signing in…" : "Sign in"}
+        <button className="auth-submit" type="submit" disabled={loading}>
+          {loading ? "Signing in…" : "Sign in to dashboard"}
         </button>
 
-        <p
-          style={{
-            marginTop: 16,
-            fontSize: 12,
-            color: "#6b857a",
-            lineHeight: 1.5,
-          }}
-        >
-          Use a recycler account registered via{" "}
-          <code>POST /api/auth/recyclers/register</code>. Collector
-          lots appear under Incoming Lots after sync.
+        <p className="auth-footer">
+          New facility?{" "}
+          <button type="button" className="auth-link" onClick={onSwitchToSignup}>
+            Create a recycler account
+          </button>
         </p>
+
+        <div className="auth-note">
+          <Building2 size={16} />
+          <span>
+            Use the same backend account your facility registered with. Collector
+            lots appear under Incoming Lots after sync.
+          </span>
+        </div>
       </form>
     </div>
   );

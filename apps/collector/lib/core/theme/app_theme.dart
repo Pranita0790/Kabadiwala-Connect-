@@ -33,11 +33,13 @@ class AppTheme {
         ),
         margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       ),
+      // Use a finite min width. Size.fromHeight(56) is Size(Infinity, 56) and
+      // crashes any ElevatedButton/OutlinedButton inside a Row (e.g. SyncStatusBar).
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(56), // Large tap target (56px)
+          minimumSize: const Size(64, 56),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -51,7 +53,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
-          minimumSize: const Size.fromHeight(56),
+          minimumSize: const Size(64, 56),
           side: const BorderSide(color: AppColors.primary, width: 2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),

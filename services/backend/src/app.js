@@ -58,6 +58,9 @@ const app = express();
 // Behind Render's proxy; required for correct client IPs in the rate limiter.
 app.set("trust proxy", true);
 app.disable("x-powered-by");
+// Dynamic lot/transaction lists must not be served as 304 with an empty body
+// to the recycler dashboard (stale empty cache looked like "nothing syncing").
+app.set("etag", false);
 
 /*
 |--------------------------------------------------------------------------

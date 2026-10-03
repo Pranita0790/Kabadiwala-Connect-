@@ -10,6 +10,8 @@ SUPPORTED_MATERIALS: Final[tuple[str, ...]] = (
     "motor",
     "magnet_bearing_assembly",
     "mixed_plastics",
+    "paper",
+    "book",
 )
 
 MODEL_SUPPORTED_MATERIALS: Final[tuple[str, ...]] = (

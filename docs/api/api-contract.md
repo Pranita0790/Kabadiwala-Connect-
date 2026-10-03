@@ -265,8 +265,8 @@ All lot endpoints require a bearer token (`requireAuth`).
 
 | Method  | Path                      | Role            | Notes                                        |
 |---------|---------------------------|-----------------|----------------------------------------------|
-| `POST`  | `/api/lots/sync`          | COLLECTOR, ADMIN| Batch offline sync; idempotent per `clientId`.|
-| `POST`  | `/api/lots`               | COLLECTOR, ADMIN| Create. `201` when newly created.            |
+| `POST`  | `/api/lots/sync`          | COLLECTOR, RECYCLER, ADMIN | Batch offline sync; idempotent per `clientId`.|
+| `POST`  | `/api/lots`               | COLLECTOR, RECYCLER, ADMIN | Create. `201` when newly created.            |
 | `GET`   | `/api/lots`               | any authenticated | `{ success, lots[], count, meta }` + `data`.|
 | `GET`   | `/api/lots/:id`           | any authenticated | `{ success, lot }` + `data`.                |
 | `PATCH` | `/api/lots/:id`           | COLLECTOR, ADMIN| Optimistic concurrency via `version`.        |
@@ -306,8 +306,8 @@ the shared Postgres tables (`recycler_profiles`, `handovers`, `transactions`).
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
 | `GET` | `/api/recyclers` | optional | `{ success, recyclers[], count }` + `data`. Filter with `?categoryId=`. |
-| `POST` | `/api/handovers` | COLLECTOR, RECYCLER, ADMIN | Create handover for a lot. Body accepts camelCase or collector snake_case (`lot_id`, `agreed_amount`, …). Idempotent on `clientReference` / UUID `id`. |
-| `POST` | `/api/handovers/:id/confirm` | COLLECTOR, RECYCLER, ADMIN | Dual confirmation. When both sides (or an admin) confirm, creates a `transactions` row and moves the lot toward `COMPLETED`. |
+| `POST` | `/api/handovers` | COLLECTOR, RECYCLER, ADMIN | Create handover for a lot. Body accepts camelCase or collector snake_case (`lot_id`, `agreed_amount`, …). Idempotent on `clientReference` / UUID `id`. If the lot is missing, a collector/admin request auto-creates an idempotent lot from the handover payload (`lotId` as `clientReference`) so offline sync can complete. |
+| `POST` | `/api/handovers/:id/confirm` | COLLECTOR, RECYCLER, ADMIN | Dual confirmation. When both sides (or an admin) confirm, creates a `transactions` row and moves the lot toward `COMPLETED`. Collector may send `{ "completeBoth": true }` (or `demoComplete`) to stamp both parties in one call for the in-app demo confirm flow. Handover id may be `public_id` or the collector `client_reference` UUID. Lot id on create may be `public_id`, `client_reference`, or `lot_number`. |
 | `GET` | `/api/transactions/my` | COLLECTOR, RECYCLER, ADMIN | Collector earnings ledger / recycler settlement list. `{ success, transactions[], count }` + `data`. |
 
 `GET /api/lots` for a **RECYCLER** returns lots assigned to that recycler **or**
@@ -348,9 +348,10 @@ deployed collector keeps reading `material` and `confidence`:
   "critical_mineral_reason": null,
   "model_version": "sih-5class-v1",
   "rule_version": "rules-1",
-  "supported_materials": ["pcb", "battery", "cable", "crt", "lcd_panel"],
+  "supported_materials": ["pcb", "battery", "cable", "crt", "lcd_panel", "mixed_plastics", "paper", "book"],
   "weight_estimate": { "estimated_weight_kg": 1.0, "confidence": 0.8, "method": "image" },
-  "value_estimate": { "estimated_value_inr": 448, "confidence": 0.7, "rate_per_kg_inr": 448, "method": "rate_card" }
+  "value_estimate": { "estimated_value_inr": 448, "confidence": 0.7, "rate_per_kg_inr": 448, "method": "rate_card" },
+  "suggested_condition": "average"
 }
 ```
 

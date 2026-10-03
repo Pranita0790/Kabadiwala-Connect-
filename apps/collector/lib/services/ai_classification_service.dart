@@ -6,12 +6,18 @@ class ClassificationResult {
   final String categoryName;
   final double confidenceScore;
   final bool isMockResult;
+  final double? weightKg;
+  final String? condition;
+  final String? notes;
 
   ClassificationResult({
     required this.categoryId,
     required this.categoryName,
     required this.confidenceScore,
     this.isMockResult = false,
+    this.weightKg,
+    this.condition,
+    this.notes,
   });
 }
 
@@ -27,15 +33,16 @@ abstract class AiClassificationService {
 class MockAiClassificationService implements AiClassificationService {
   @override
   Future<ClassificationResult?> classifyEWasteImage(String imagePath) async {
-    // Simulate network API round-trip delay for image analysis
     await Future.delayed(const Duration(milliseconds: 1200));
 
-    // Return mock AI suggestion
     return ClassificationResult(
       categoryId: 'pcb_motherboard',
       categoryName: 'Motherboard / PCB',
       confidenceScore: 0.92,
-      isMockResult: true, // Clearly marked as mock data
+      isMockResult: true,
+      weightKg: 1.5,
+      condition: 'scrap',
+      notes: 'AI suggested Motherboard / PCB (92%)',
     );
   }
 }

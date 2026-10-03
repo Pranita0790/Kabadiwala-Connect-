@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../core/constants/app_constants.dart';
 import '../models/app_notification.dart';
@@ -8,6 +9,7 @@ import '../models/price.dart';
 import '../models/price_alert.dart';
 import '../models/recycler.dart';
 import '../models/transaction.dart';
+import 'session_store.dart';
 
 /// Generic response wrapper for backend operations.
 class ApiResponse<T> {
@@ -479,14 +481,18 @@ class RemoteApiService implements ApiService {
   final String baseUrl;
   final http.Client _client;
   final MockApiService _mock = MockApiService();
+  final SessionStore _sessionStore;
   String? _authToken;
+  Future<bool>? _refreshInFlight;
 
   RemoteApiService({
     String? baseUrl,
     http.Client? client,
     String? authToken,
+    SessionStore? sessionStore,
   })  : baseUrl = baseUrl ?? AppConstants.apiBaseUrl,
         _client = client ?? http.Client(),
+        _sessionStore = sessionStore ?? SessionStore(),
         _authToken = authToken;
 
   static RemoteApiService get instance {
@@ -509,6 +515,82 @@ class RemoteApiService implements ApiService {
         if (_authToken != null && _authToken!.isNotEmpty)
           'Authorization': 'Bearer $_authToken',
       };
+
+  /// Rotates the access token via `POST /api/auth/refresh`.
+  Future<bool> refreshAccessToken() async {
+    if (_refreshInFlight != null) {
+      return _refreshInFlight!;
+    }
+
+    _refreshInFlight = _refreshAccessTokenOnce();
+    try {
+      return await _refreshInFlight!;
+    } finally {
+      _refreshInFlight = null;
+    }
+  }
+
+  Future<bool> _refreshAccessTokenOnce() async {
+    try {
+      final refresh = await _sessionStore.getRefreshToken();
+      if (refresh == null || refresh.isEmpty) {
+        return false;
+      }
+
+      final uri = Uri.parse('$baseUrl/auth/refresh');
+      final response = await _client
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: json.encode({'refreshToken': refresh}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        developer.log(
+          'Token refresh failed: ${response.statusCode}',
+          name: 'api.auth',
+          error: response.body,
+        );
+        return false;
+      }
+
+      final body = json.decode(response.body) as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(body['data'] as Map? ?? body);
+      final access = data['accessToken'] as String?;
+      final nextRefresh = data['refreshToken'] as String?;
+      if (access == null || access.isEmpty) {
+        return false;
+      }
+
+      setAuthToken(access);
+      await _sessionStore.save(
+        accessToken: access,
+        refreshToken: nextRefresh,
+      );
+      return true;
+    } catch (e) {
+      developer.log('Token refresh error', name: 'api.auth', error: e);
+      return false;
+    }
+  }
+
+  /// Runs [send] and retries once after a refresh when the backend returns 401.
+  Future<http.Response> _withAuthRetry(
+    Future<http.Response> Function() send,
+  ) async {
+    var response = await send();
+    if (response.statusCode != 401) {
+      return response;
+    }
+
+    final refreshed = await refreshAccessToken();
+    if (!refreshed) {
+      return response;
+    }
+
+    return send();
+  }
 
   /// Maps collector category ids onto backend `materials.id` values.
   static String mapMaterialId(String categoryId) {
@@ -602,7 +684,8 @@ class RemoteApiService implements ApiService {
         statusCode: response.statusCode,
       );
     } catch (e) {
-      return ApiResponse.failure('authBackendUnreachable: $e');
+      developer.log('Login request failed ($baseUrl/auth/login)', error: e, name: 'api.auth');
+      return ApiResponse.failure('authBackendUnreachable');
     }
   }
 
@@ -642,7 +725,8 @@ class RemoteApiService implements ApiService {
         statusCode: response.statusCode,
       );
     } catch (e) {
-      return ApiResponse.failure('authBackendUnreachable: $e');
+      developer.log('Register request failed ($baseUrl/auth/register)', error: e, name: 'api.auth');
+      return ApiResponse.failure('authBackendUnreachable');
     }
   }
 
@@ -663,13 +747,15 @@ class RemoteApiService implements ApiService {
   Future<ApiResponse<EWasteLot>> uploadLot(EWasteLot lot) async {
     try {
       final uri = Uri.parse('$baseUrl/lots');
-      final response = await _client
-          .post(
-            uri,
-            headers: _headers,
-            body: json.encode(lotToApiBody(lot)),
-          )
-          .timeout(const Duration(seconds: 10));
+      final response = await _withAuthRetry(
+        () => _client
+            .post(
+              uri,
+              headers: _headers,
+              body: json.encode(lotToApiBody(lot)),
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final body = json.decode(response.body);
@@ -680,7 +766,9 @@ class RemoteApiService implements ApiService {
       }
       final body = json.decode(response.body);
       return ApiResponse.failure(
-        (body['message'] as String?) ?? 'Lot upload failed',
+        (body['code'] as String?) ??
+            (body['message'] as String?) ??
+            'Lot upload failed',
         statusCode: response.statusCode,
       );
     } catch (e) {
@@ -696,16 +784,18 @@ class RemoteApiService implements ApiService {
       if (!item.containsKey('clientReference')) {
         item['clientReference'] = id;
       }
-      final response = await _client
-          .post(
-            uri,
-            headers: _headers,
-            body: json.encode({
-              'items': [item],
-              'conflictStrategy': 'CLIENT_WINS',
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+      final response = await _withAuthRetry(
+        () => _client
+            .post(
+              uri,
+              headers: _headers,
+              body: json.encode({
+                'items': [item],
+                'conflictStrategy': 'CLIENT_WINS',
+              }),
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return ApiResponse.success(true, statusCode: response.statusCode);
@@ -762,7 +852,9 @@ class RemoteApiService implements ApiService {
     // repository must read real local SQLite transactions instead.
     try {
       final uri = Uri.parse('$baseUrl/transactions/my');
-      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+      final response = await _withAuthRetry(
+        () => _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5)),
+      );
 
       if (response.statusCode == 200) {
         final body = json.decode(response.body);
@@ -829,20 +921,24 @@ class RemoteApiService implements ApiService {
         'qrPayload': handover.qrPayload,
       }..removeWhere((key, value) => value == null);
 
-      final response = await _client
-          .post(
-            uri,
-            headers: _headers,
-            body: json.encode(body),
-          )
-          .timeout(const Duration(seconds: 10));
+      final response = await _withAuthRetry(
+        () => _client
+            .post(
+              uri,
+              headers: _headers,
+              body: json.encode(body),
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return ApiResponse.success(handover, statusCode: response.statusCode);
       }
       final decoded = json.decode(response.body);
       return ApiResponse.failure(
-        (decoded['message'] as String?) ?? 'Handover upload failed',
+        (decoded['code'] as String?) ??
+            (decoded['message'] as String?) ??
+            'Handover upload failed',
         statusCode: response.statusCode,
       );
     } catch (e) {
@@ -854,9 +950,19 @@ class RemoteApiService implements ApiService {
   Future<ApiResponse<bool>> confirmHandoverOnBackend(String handoverId) async {
     try {
       final uri = Uri.parse('$baseUrl/handovers/$handoverId/confirm');
-      final response = await _client
-          .post(uri, headers: _headers)
-          .timeout(const Duration(seconds: 10));
+      final response = await _withAuthRetry(
+        () => _client
+            .post(
+              uri,
+              headers: _headers,
+              // Collector demo confirm stamps both parties so earnings post.
+              body: json.encode({
+                'completeBoth': true,
+                'demoComplete': true,
+              }),
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
 
       if (response.statusCode == 200) {
         return ApiResponse.success(true, statusCode: 200);

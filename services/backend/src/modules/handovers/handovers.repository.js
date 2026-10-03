@@ -82,10 +82,20 @@ async function findByClientReference(clientReference) {
 }
 
 async function findRawByPublicId(publicId) {
-  return queryOne(
+  const byPublic = await queryOne(
     `${HANDOVER_SELECT} WHERE h.public_id = $1`,
     [publicId],
     { label: "handovers:findRawByPublicId" }
+  );
+  if (byPublic) {
+    return byPublic;
+  }
+
+  // Collector confirms with its local handover UUID (stored as client_reference).
+  return queryOne(
+    `${HANDOVER_SELECT} WHERE h.client_reference = $1`,
+    [publicId],
+    { label: "handovers:findRawByClientReference" }
   );
 }
 

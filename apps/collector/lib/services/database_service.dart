@@ -690,6 +690,23 @@ class DatabaseService {
     }
   }
 
+  /// Replace the whole recycler cache so stale demo rows cannot hide live ORG.
+  Future<void> replaceAllRecyclers(List<Recycler> recyclers) async {
+    try {
+      final db = await database;
+      await db.transaction((txn) async {
+        await txn.delete(AppConstants.tableRecyclers);
+        final batch = txn.batch();
+        for (final r in recyclers) {
+          batch.insert(AppConstants.tableRecyclers, r.toMap());
+        }
+        await batch.commit(noResult: true);
+      });
+    } catch (e) {
+      throw DatabaseException('Failed to replace recyclers in SQLite', e);
+    }
+  }
+
   Future<List<Recycler>> getRecyclers() async {
     try {
       final db = await database;

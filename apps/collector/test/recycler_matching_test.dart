@@ -158,9 +158,10 @@ void main() {
 
       // Verify pricing and distance details are visible
       expect(find.text('2.4 km away'), findsOneWidget);
-      expect(find.text('320/kg'), findsOneWidget);
-      expect(find.text('4.8'), findsOneWidget);
-      expect(find.text('Authorized Recycler'), findsWidgets);
+      expect(find.textContaining('320/kg'), findsOneWidget);
+      expect(find.text('Rating 4.8'), findsOneWidget);
+      expect(find.byIcon(Icons.verified), findsWidgets);
+      expect(find.text('Select'), findsWidgets);
     });
 
     testWidgets('2. Map/Radar toggle switches between views and displays radar elements', (tester) async {

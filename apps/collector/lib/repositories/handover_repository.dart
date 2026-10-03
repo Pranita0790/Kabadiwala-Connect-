@@ -68,15 +68,44 @@ class HandoverRepository {
 
     await _dbService.insertHandover(handover);
 
-    // If online, attempt background sync
+    // If online, push lot then handover so Incoming Lots can see it.
     final isOnline = await _connectivityService.isConnected();
     if (isOnline) {
       try {
+        final remote = _apiService;
+        if (remote is RemoteApiService) {
+          await remote.refreshAccessToken();
+        }
+
+        final linkedLot = lot ?? await _dbService.getLot(effectiveLotId);
+        if (linkedLot != null &&
+            linkedLot.syncStatus != AppConstants.syncSynced) {
+          final lotRes = await _apiService.uploadLot(linkedLot);
+          if (lotRes.success) {
+            await _dbService.markAsSynced(linkedLot.id);
+          }
+        }
+
         final res = await _apiService.uploadHandover(handover);
         if (res.success) {
-          await _dbService.updateHandoverSyncStatus(handover.id, AppConstants.syncSynced);
+          await _dbService.updateHandoverSyncStatus(
+            handover.id,
+            AppConstants.syncSynced,
+          );
+        } else {
+          await _dbService.updateHandoverSyncStatus(
+            handover.id,
+            AppConstants.syncFailed,
+            retryCount: handover.retryCount + 1,
+          );
         }
-      } catch (_) {}
+      } catch (_) {
+        await _dbService.updateHandoverSyncStatus(
+          handover.id,
+          AppConstants.syncFailed,
+          retryCount: handover.retryCount + 1,
+        );
+      }
     }
 
     return handover;
@@ -135,10 +164,32 @@ class HandoverRepository {
     );
     await _dbService.insertNotification(notif);
 
-    // 3. Inform backend if online
+    // 3. Inform backend if online (refresh token first — access JWT is short-lived)
     final isOnline = await _connectivityService.isConnected();
     if (isOnline) {
       try {
+        final remote = _apiService;
+        if (remote is RemoteApiService) {
+          await remote.refreshAccessToken();
+        }
+        // Always ensure the lot exists on the server (idempotent via clientReference).
+        // Local SYNCED can be wrong if a prior upload never reached Postgres.
+        final linkedLot = await _dbService.getLot(updated.lotId);
+        if (linkedLot != null) {
+          final lotRes = await _apiService.uploadLot(linkedLot);
+          if (lotRes.success) {
+            await _dbService.markAsSynced(linkedLot.id);
+          }
+        }
+
+        // Ensure the handover row exists remotely before confirming.
+        final upload = await _apiService.uploadHandover(updated);
+        if (upload.success) {
+          await _dbService.updateHandoverSyncStatus(
+            updated.id,
+            AppConstants.syncSynced,
+          );
+        }
         await _apiService.confirmHandoverOnBackend(handoverId);
       } catch (_) {}
     }

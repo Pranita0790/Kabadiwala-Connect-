@@ -44,6 +44,15 @@ const byIdSchema = {
   params: z.object({
     id: z.string().trim().min(1).max(64),
   }),
+  body: z
+    .object({
+      // Collector demo / offline confirm: stamp both parties so earnings post.
+      completeBoth: z.boolean().optional(),
+      demoComplete: z.boolean().optional(),
+    })
+    .strip()
+    .optional()
+    .default({}),
 };
 
 // POST /api/handovers
@@ -68,7 +77,7 @@ router.post(
   requireRole(userRole.COLLECTOR, userRole.RECYCLER, userRole.ADMIN),
   validate(byIdSchema),
   asyncHandler(async (req, res) => {
-    const handover = await service.confirm(req.params.id, req.user);
+    const handover = await service.confirm(req.params.id, req.user, req.body || {});
 
     sendSuccess(res, {
       message: "Handover confirmation recorded",

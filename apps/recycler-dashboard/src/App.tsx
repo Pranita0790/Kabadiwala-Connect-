@@ -19,6 +19,7 @@ import {
 import {
   NavLink,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import {
@@ -29,6 +30,7 @@ import {
 } from "react";
 
 import "./App.css";
+import "./visual.css";
 
 import {
   getStoredLots,
@@ -39,7 +41,7 @@ import {
   getAccessToken,
   getStoredUser,
 } from "./lib/api";
-import Login from "./pages/Login";
+import AuthGate from "./pages/AuthGate";
 
 
 /* =========================================================
@@ -58,6 +60,10 @@ const HandoverVerification = lazy(
   () => import("./pages/HandoverVerification")
 );
 
+const VerificationHub = lazy(
+  () => import("./pages/VerificationHub")
+);
+
 const Transactions = lazy(
   () => import("./pages/Transactions")
 );
@@ -68,6 +74,14 @@ const Traceability = lazy(
 
 const RateBoard = lazy(
   () => import("./pages/RateBoard")
+);
+
+const SettingsPage = lazy(
+  () => import("./pages/Settings")
+);
+
+const NotificationsPage = lazy(
+  () => import("./pages/Notifications")
 );
 
 
@@ -136,6 +150,13 @@ function Dashboard({
     (lot) => Boolean(lot.criticalMineral)
   ).length;
 
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const orgName =
+    getStoredUser()?.organisationName ||
+    getStoredUser()?.fullName ||
+    "Recycler";
 
   return (
     <section className="dashboard-content">
@@ -149,12 +170,12 @@ function Dashboard({
         <div>
 
           <h3>
-            Good morning, EcoCycle 👋
+            {greeting}, {orgName}
           </h3>
 
           <p>
-            Here's what's happening with
-            your recycling operations today.
+            A calm view of lots, handovers, and settlement —
+            live from your facility backend.
           </p>
 
         </div>
@@ -633,12 +654,19 @@ function Dashboard({
 function App() {
 
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [authed, setAuthed] = useState(
     () => Boolean(getAccessToken())
   );
 
   const authUser = getStoredUser();
+  const initials = (authUser?.organisationName || authUser?.fullName || "RC")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "RC";
 
   const [
     lots,
@@ -686,10 +714,18 @@ function App() {
       "/incoming-lots/"
     );
 
+  const isVerificationHub =
+    location.pathname === "/verification";
+
   const isVerification =
-    location.pathname.startsWith(
-      "/verification"
-    );
+    location.pathname.startsWith("/verification/") &&
+    location.pathname !== "/verification";
+
+  const isSettings =
+    location.pathname === "/settings";
+
+  const isNotifications =
+    location.pathname === "/notifications";
 
 
   /* =========================================================
@@ -736,7 +772,7 @@ function App() {
 
   if (!authed) {
     return (
-      <Login
+      <AuthGate
         onSuccess={() => {
           setAuthed(true);
           refreshLotsFromBackend()
@@ -749,22 +785,12 @@ function App() {
 
 
   /* =========================================================
-     CURRENT VERIFICATION LOT
-     ========================================================= */
-
-  const handoverLot = lots.find(
-    (lot) =>
-      lot.status === "Handover"
-  );
-
-
-  /* =========================================================
      PAGE TITLE
      ========================================================= */
 
   const getPageTitle = () => {
 
-    if (isVerification) {
+    if (isVerification || isVerificationHub) {
       return "Handover Verification";
     }
 
@@ -788,6 +814,14 @@ function App() {
       return "Rate Board";
     }
 
+    if (isSettings) {
+      return "Settings";
+    }
+
+    if (isNotifications) {
+      return "Notifications";
+    }
+
     return "Dashboard";
 
   };
@@ -799,7 +833,7 @@ function App() {
 
   const getBreadcrumb = () => {
 
-    if (isVerification) {
+    if (isVerification || isVerificationHub) {
       return "Operations / Handover Verification";
     }
 
@@ -821,6 +855,14 @@ function App() {
 
     if (isRateBoard) {
       return "Finance / Rate Board";
+    }
+
+    if (isSettings) {
+      return "Account / Settings";
+    }
+
+    if (isNotifications) {
+      return "Account / Notifications";
     }
 
     return "Overview";
@@ -1029,14 +1071,10 @@ function App() {
             {/* VERIFICATION */}
 
             <NavLink
-              to={
-                handoverLot
-                  ? `/verification/${handoverLot.id}`
-                  : "/verification"
-              }
+              to="/verification"
               className={() =>
                 `nav-item ${
-                  isVerification
+                  isVerification || isVerificationHub
                     ? "active"
                     : ""
                 }`
@@ -1049,19 +1087,26 @@ function App() {
                 Verification
               </span>
 
+              <span className="nav-badge">
+                {
+                  lots.filter(
+                    (lot) =>
+                      lot.status === "Handover" ||
+                      lot.status === "Accepted"
+                  ).length
+                }
+              </span>
+
             </NavLink>
 
 
             {/* SETTINGS */}
 
-            <button
-              type="button"
-              className="nav-item"
-              onClick={() => {
-                alert(
-                  "Settings module is coming next."
-                );
-              }}
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                `nav-item ${isActive ? "active" : ""}`
+              }
             >
 
               <Settings size={19} />
@@ -1070,7 +1115,7 @@ function App() {
                 Settings
               </span>
 
-            </button>
+            </NavLink>
 
           </nav>
 
@@ -1095,11 +1140,12 @@ function App() {
             <div>
 
               <strong>
-                Verified Recycler
+                {authUser?.organisationName ||
+                  "Recycler facility"}
               </strong>
 
               <span>
-                Authorization active
+                {authUser?.role || "RECYCLER"}
               </span>
 
             </div>
@@ -1151,6 +1197,7 @@ function App() {
               type="button"
               className="icon-button"
               aria-label="Notifications"
+              onClick={() => navigate("/notifications")}
             >
 
               <Bell size={20} />
@@ -1165,7 +1212,7 @@ function App() {
             <div className="profile">
 
               <div className="avatar">
-                EC
+                {initials}
               </div>
 
 
@@ -1218,6 +1265,10 @@ function App() {
 
             <HandoverVerification />
 
+          ) : isVerificationHub ? (
+
+            <VerificationHub />
+
           ) : isIncomingLots ? (
 
             <IncomingLots />
@@ -1234,11 +1285,15 @@ function App() {
 
             <RateBoard />
 
-          ) : isDashboard ? (
+          ) : isSettings ? (
 
-            <Dashboard
-              lots={lots}
+            <SettingsPage
+              onSignedOut={() => setAuthed(false)}
             />
+
+          ) : isNotifications ? (
+
+            <NotificationsPage />
 
           ) : (
 

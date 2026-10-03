@@ -15,6 +15,8 @@ MaterialName = Literal[
     "motor",
     "magnet_bearing_assembly",
     "mixed_plastics",
+    "paper",
+    "book",
     "unknown",
 ]
 
@@ -29,3 +31,4 @@ class MaterialAnalysisResponse(BaseModel):
     supported_materials: list[MaterialName]
     weight_estimate: WeightEstimate
     value_estimate: ValueEstimate
+    suggested_condition: str | None = None

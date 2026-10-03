@@ -16,15 +16,20 @@ function toRecyclerDto(row) {
         .filter(Boolean)
     : [];
 
+  // Until accepted-materials rows are curated, an empty list means the
+  // facility accepts mixed/general e-waste so collector matching still works.
+  const categories =
+    accepted.length > 0 ? accepted : ["mixed", "pcb", "battery", "cable", "crt", "lcd_panel"];
+
   return {
     id: row.id,
     name: row.organisation_name,
     organisationName: row.organisation_name,
-    address: row.address || [row.city, row.region].filter(Boolean).join(", "),
+    address: row.address || [row.city, row.region].filter(Boolean).join(", ") || "India",
     city: row.city,
     region: row.region,
-    acceptedCategories: accepted,
-    accepted_categories: accepted.join(","),
+    acceptedCategories: categories,
+    accepted_categories: categories.join(","),
     distanceKm: 0,
     distance_km: 0,
     isAuthorized: Boolean(row.is_authorized),
@@ -34,8 +39,8 @@ function toRecyclerDto(row) {
     contact_phone: row.contact_phone,
     latitude: row.latitude === null ? 0 : Number(row.latitude),
     longitude: row.longitude === null ? 0 : Number(row.longitude),
-    indicativePrice: null,
-    indicative_price: null,
+    indicativePrice: 250,
+    indicative_price: 250,
     unit: "kg",
     isDemo: false,
     is_demo: false,
@@ -71,7 +76,7 @@ async function list({ categoryId } = {}) {
        rp.region,
        rp.latitude,
        rp.longitude,
-       rp.contact_phone,
+       COALESCE(rp.contact_phone, u.phone) AS contact_phone,
        rp.is_authorized,
        rp.rating,
        rp.accepts_mixed,
@@ -81,6 +86,7 @@ async function list({ categoryId } = {}) {
          WHERE ram.recycler_id = rp.id
        ) AS accepted_materials
      FROM recycler_profiles rp
+     LEFT JOIN users u ON u.id = rp.user_id
      WHERE rp.is_active = TRUE
      ${materialFilter}
      ORDER BY rp.is_authorized DESC, rp.organisation_name ASC`,

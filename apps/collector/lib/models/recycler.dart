@@ -66,26 +66,36 @@ class Recycler {
     return Recycler(
       id: map['id'].toString(),
       name: (map['name'] ?? map['organisationName'] ?? 'Recycler').toString(),
-      address: (map['address'] as String?) ?? '',
-      acceptedCategories: categories,
-      distanceKm:
-          ((map['distance_km'] ?? map['distanceKm'] ?? 0.0) as num).toDouble(),
+      address: (map['address'] ?? map['city'] ?? '').toString(),
+      acceptedCategories: categories.where((c) => c.trim().isNotEmpty).toList(),
+      distanceKm: _asDouble(map['distance_km'] ?? map['distanceKm'], 0),
       isAuthorized: map['is_authorized'] == 1 ||
           map['is_authorized'] == true ||
           map['isAuthorized'] == true,
-      rating: ((map['rating'] ?? 4.5) as num).toDouble(),
+      rating: _asDouble(map['rating'], 4.5),
       contactPhone:
-          (map['contact_phone'] ?? map['contactPhone']) as String?,
-      latitude: ((map['latitude'] ?? 0.0) as num).toDouble(),
-      longitude: ((map['longitude'] ?? 0.0) as num).toDouble(),
-      indicativePrice:
-          ((map['indicative_price'] ?? map['indicativePrice']) as num?)
-              ?.toDouble(),
-      unit: map['unit'] as String? ?? 'kg',
+          (map['contact_phone'] ?? map['contactPhone'])?.toString(),
+      latitude: _asDouble(map['latitude'], 0),
+      longitude: _asDouble(map['longitude'], 0),
+      indicativePrice: map['indicative_price'] == null &&
+              map['indicativePrice'] == null
+          ? null
+          : _asDouble(map['indicative_price'] ?? map['indicativePrice'], 0),
+      unit: (map['unit'] ?? 'kg').toString(),
+      // Only treat as demo when explicitly flagged. Missing/false → live.
       isDemo: map['is_demo'] == 1 ||
           map['is_demo'] == true ||
-          map['isDemo'] == true,
+          map['is_demo'] == '1' ||
+          map['isDemo'] == true ||
+          map['isDemo'] == 1 ||
+          map['isDemo'] == '1',
     );
+  }
+
+  static double _asDouble(dynamic value, double fallback) {
+    if (value == null) return fallback;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? fallback;
   }
 
   Recycler copyWith({

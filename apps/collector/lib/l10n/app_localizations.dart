@@ -556,6 +556,24 @@ abstract class AppLocalizations {
   /// **'Heavy Electricals'**
   String get categoryAppliances;
 
+  /// No description provided for @categoryPlastic.
+  ///
+  /// In en, this message translates to:
+  /// **'Plastic'**
+  String get categoryPlastic;
+
+  /// No description provided for @categoryPaper.
+  ///
+  /// In en, this message translates to:
+  /// **'Paper'**
+  String get categoryPaper;
+
+  /// No description provided for @categoryBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Books'**
+  String get categoryBook;
+
   /// No description provided for @categoryMixed.
   ///
   /// In en, this message translates to:

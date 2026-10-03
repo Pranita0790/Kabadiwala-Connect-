@@ -132,6 +132,9 @@ void main() {
 
       await dbService.insertRecyclers(recyclers);
 
+      // Exercise local ranking/filter (not the mock network catalog).
+      connectivityService.setMockIsConnected(false);
+
       // Query matching recyclers for 'pcb'
       final pcbResult = await recyclerRepository.fetchMatchingRecyclers(categoryId: 'pcb');
       expect(pcbResult.recyclers.length, equals(2));

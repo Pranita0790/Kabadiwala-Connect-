@@ -29,7 +29,8 @@ function buildPoolOptions() {
     options.port = config.database.port;
     options.database = config.database.name;
     options.user = config.database.user;
-    options.password = config.database.password;
+    // pg SCRAM auth requires a string; numeric env values must be coerced.
+    options.password = String(config.database.password ?? "");
   }
 
   if (config.database.ssl) {

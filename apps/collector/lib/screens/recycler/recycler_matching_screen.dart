@@ -229,8 +229,8 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
                     color: Colors.amber.shade800,
                   ),
                   _InfoChip(
-                    icon: Icons.currency_rupee_rounded,
-                    label: '₹${recycler.indicativeRatePerKg.toStringAsFixed(0)}/kg',
+                    icon: Icons.payments_outlined,
+                    label: 'Rs ${recycler.indicativeRatePerKg.toStringAsFixed(0)}/kg',
                     subtitle: loc.translate('indicativePrice'),
                     color: AppColors.primary,
                   ),
@@ -340,22 +340,45 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.amber.shade400),
-                  ),
-                  child: Text(
-                    'DEMO DATA',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.brown.shade800,
+                if (_recyclers.isNotEmpty &&
+                    _recyclers.every((r) => r.isDemo))
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.amber.shade400),
+                    ),
+                    child: Text(
+                      'DEMO DATA',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.brown.shade800,
+                      ),
+                    ),
+                  )
+                else if (_recyclers.any((r) => !r.isDemo))
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: const Text(
+                      'LIVE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryDark,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -386,41 +409,57 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
               border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  _isMapView ? loc.translate('radarProximityView') : loc.translate('nearbyRecyclers'),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                Expanded(
+                  child: Text(
+                    _isMapView
+                        ? loc.translate('radarProximityView')
+                        : loc.translate('nearbyRecyclers'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _ViewToggleButton(
-                        icon: Icons.list_rounded,
-                        label: loc.translate('listView'),
-                        isSelected: !_isMapView,
-                        onTap: () {
-                          if (_isMapView) setState(() => _isMapView = false);
-                        },
-                      ),
-                      _ViewToggleButton(
-                        icon: Icons.radar_rounded,
-                        label: loc.translate('mapView'),
-                        isSelected: _isMapView,
-                        onTap: () {
-                          if (!_isMapView) setState(() => _isMapView = true);
-                        },
-                      ),
-                    ],
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: _ViewToggleButton(
+                            icon: Icons.list_rounded,
+                            label: loc.translate('listView'),
+                            isSelected: !_isMapView,
+                            onTap: () {
+                              if (_isMapView) {
+                                setState(() => _isMapView = false);
+                              }
+                            },
+                          ),
+                        ),
+                        Flexible(
+                          child: _ViewToggleButton(
+                            icon: Icons.radar_rounded,
+                            label: loc.translate('mapView'),
+                            isSelected: _isMapView,
+                            onTap: () {
+                              if (!_isMapView) {
+                                setState(() => _isMapView = true);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -555,216 +594,212 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
   }
 
   Widget _buildListView(AppLocalizations loc) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      itemCount: _recyclers.length,
-      itemBuilder: (context, index) {
-        final r = _recyclers[index];
-        final isSelected = _selectedRecycler?.id == r.id;
+    // Avoid theme ElevatedButton/OutlinedButton min sizes (infinite width +
+    // 56px height) inside cards — those can collapse/clip list tiles on device.
+    final compactButtonStyle = ElevatedButton.styleFrom(
+      minimumSize: const Size(0, 40),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
+    final compactOutlineStyle = OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 40),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      foregroundColor: AppColors.primary,
+      side: const BorderSide(color: AppColors.primary, width: 1.5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
 
-        return Card(
-          elevation: isSelected ? 3 : 1,
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(
+    return ColoredBox(
+      color: AppColors.background,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+        itemCount: _recyclers.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final r = _recyclers[index];
+          final isSelected = _selectedRecycler?.id == r.id;
+          final categories = r.acceptedCategories.isEmpty
+              ? <String>['all materials']
+              : r.acceptedCategories;
+          final title = r.name.trim().isEmpty ? 'Recycler' : r.name.trim();
+          final subtitle = r.address.trim().isEmpty
+              ? 'Address not provided'
+              : r.address.trim();
+
+          return Material(
+            color: AppColors.surface,
+            elevation: isSelected ? 3 : 1,
+            shadowColor: Colors.black26,
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: isSelected ? AppColors.primary : Colors.grey.shade200,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => _onSelectRecycler(r),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Row 1: Number Badge, Name, Address, Verified Icon
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: isSelected
-                            ? AppColors.primary
-                            : AppColors.primary.withValues(alpha: 0.12),
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: isSelected ? Colors.white : AppColors.primaryDark,
-                            fontSize: 14,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _onSelectRecycler(r),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: isSelected
+                              ? AppColors.primary
+                              : AppColors.primary.withValues(alpha: 0.12),
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppColors.primaryDark,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              r.name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              r.address,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (r.isAuthorized)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.verified, color: AppColors.primary, size: 14),
-                              const SizedBox(width: 4),
                               Text(
-                                loc.translate('authorizedRecycler'),
+                                title,
                                 style: const TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryDark,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitle,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Row 2: Distance, Price, and Rating chips
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 6,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.near_me_rounded, size: 15, color: AppColors.secondary),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${r.distanceKm.toStringAsFixed(1)} ${loc.translate('kmAway')}',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.currency_rupee, size: 15, color: AppColors.primary),
-                          Text(
-                            '${r.indicativeRatePerKg.toStringAsFixed(0)}/kg',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                        if (r.isAuthorized)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 6),
+                            child: Icon(
+                              Icons.verified,
                               color: AppColors.primary,
+                              size: 20,
                             ),
                           ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.star_rounded, size: 16, color: Colors.amber.shade800),
-                          const SizedBox(width: 2),
-                          Text(
-                            '${r.rating}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber.shade900,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Row 3: Accepted Materials chips
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: r.acceptedCategories.map((cat) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Text(
-                          cat.replaceAll('_', ' ').toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 10,
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 6,
+                      children: [
+                        Text(
+                          '${r.distanceKm.toStringAsFixed(1)} ${loc.translate('kmAway')}',
+                          style: const TextStyle(
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade800,
+                            color: AppColors.textPrimary,
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                  const Divider(height: 20),
-
-                  // Row 4: Action Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      OutlinedButton(
-                        onPressed: () => _showRecyclerDetails(r),
-                        style: OutlinedButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          side: BorderSide(color: Colors.grey.shade400),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                        Text(
+                          'Rs ${r.indicativeRatePerKg.toStringAsFixed(0)}/kg',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
                           ),
                         ),
-                        child: Text(loc.translate('viewDetails')),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: () => _navigateToHandover(r),
-                        icon: const Icon(Icons.qr_code_rounded, size: 16),
-                        label: Text(loc.translate('selectRecycler')),
-                        style: ElevatedButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                        Text(
+                          'Rating ${r.rating}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber.shade900,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: categories.map((cat) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Text(
+                            cat.replaceAll('_', ' ').toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _showRecyclerDetails(r),
+                            style: compactOutlineStyle,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(loc.translate('viewDetails')),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _navigateToHandover(r),
+                            style: compactButtonStyle,
+                            child: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Select'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

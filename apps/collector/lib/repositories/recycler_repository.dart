@@ -64,48 +64,45 @@ class RecyclerRepository {
   }) async {
     final isOnline = await _connectivityService.isConnected();
     final normCategory = normalizeCategoryId(categoryId);
+    // forceRefresh kept for call-site compatibility; online always refreshes.
+    // ignore: unused_local_variable
+    final _ = forceRefresh;
 
-    if (isOnline && forceRefresh) {
+    // Always try the network when online so newly signed-up recyclers appear.
+    if (isOnline) {
       try {
         final apiResponse = await _apiService.fetchMatchingRecyclers(
           categoryId: normCategory == 'all' ? null : normCategory,
         );
-        if (apiResponse.success && apiResponse.data != null && apiResponse.data!.isNotEmpty) {
-          await _dbService.insertRecyclers(apiResponse.data!);
-          return RecyclerResult(recyclers: apiResponse.data!, isOffline: false);
+        if (apiResponse.success &&
+            apiResponse.data != null &&
+            apiResponse.data!.isNotEmpty) {
+          await _dbService.replaceAllRecyclers(apiResponse.data!);
+          final ranked = _rankAndFilter(apiResponse.data!, normCategory);
+          return RecyclerResult(recyclers: ranked, isOffline: false);
         }
       } catch (_) {
-        // Fallback to local SQLite cache
+        // Fall through to SQLite / offline cache.
       }
     }
 
-    // Local SQLite retrieval
     try {
       List<Recycler> localRecyclers = await _dbService.getRecyclers();
 
-      // If local cache is empty, fetch from API / seed benchmark dataset
+      // First run / empty cache: seed from API mock fallback.
       if (localRecyclers.isEmpty) {
-        final apiResponse = await _apiService.fetchMatchingRecyclers(categoryId: null);
-        if (apiResponse.success && apiResponse.data != null && apiResponse.data!.isNotEmpty) {
+        final apiResponse =
+            await _apiService.fetchMatchingRecyclers(categoryId: null);
+        if (apiResponse.success &&
+            apiResponse.data != null &&
+            apiResponse.data!.isNotEmpty) {
           await _dbService.insertRecyclers(apiResponse.data!);
           localRecyclers = apiResponse.data!;
         }
       }
 
-      if (normCategory != 'all' && normCategory.isNotEmpty) {
-        localRecyclers = localRecyclers.where((r) => matchesCategory(r, normCategory)).toList();
-      }
-
-      // Rank/sort recyclers: Authorized first, then by ascending distance
-      localRecyclers.sort((a, b) {
-        if (a.isAuthorized != b.isAuthorized) {
-          return a.isAuthorized ? -1 : 1;
-        }
-        return a.distanceKm.compareTo(b.distanceKm);
-      });
-
       return RecyclerResult(
-        recyclers: localRecyclers,
+        recyclers: _rankAndFilter(localRecyclers, normCategory),
         isOffline: !isOnline,
       );
     } catch (e) {
@@ -115,6 +112,24 @@ class RecyclerRepository {
         errorMessage: e.toString(),
       );
     }
+  }
+
+  List<Recycler> _rankAndFilter(List<Recycler> input, String normCategory) {
+    var list = List<Recycler>.from(input);
+    if (normCategory != 'all' && normCategory.isNotEmpty) {
+      list = list.where((r) => matchesCategory(r, normCategory)).toList();
+    }
+    list.sort((a, b) {
+      if (a.isAuthorized != b.isAuthorized) {
+        return a.isAuthorized ? -1 : 1;
+      }
+      // Prefer real (non-demo) recyclers so a signed-up facility appears first.
+      if (a.isDemo != b.isDemo) {
+        return a.isDemo ? 1 : -1;
+      }
+      return a.distanceKm.compareTo(b.distanceKm);
+    });
+    return list;
   }
 
   Future<Recycler?> getRecyclerById(String id) async {

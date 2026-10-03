@@ -13,6 +13,8 @@ import {
     useMemo,
     useState,
   } from "react";
+
+  import { getApiBase } from "../lib/api";
   
   type Rate = {
     id: string;
@@ -22,8 +24,8 @@ import {
     unit: string;
     updatedAt: string;
   };
-  
-  const API_BASE = "https://kabadiwala-backend-69wr.onrender.com/api";
+
+  const API_BASE = getApiBase();
   
   export default function RateBoard() {
     const [rates, setRates] = useState<Rate[]>([]);

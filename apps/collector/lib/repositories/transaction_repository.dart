@@ -82,16 +82,35 @@ class TransactionRepository {
 
     final isConnected = await _connectivityService.isConnected();
 
+    final localTransactions = await _dbService.getTransactions();
+
     if (isConnected) {
       try {
         final response = await _apiService.fetchMyTransactions();
         if (response.success && response.data != null) {
-          // Cache each transaction in local SQLite
           for (final tx in response.data!) {
             await _dbService.insertTransaction(tx);
           }
+
+          // API can briefly return [] after a local confirm while sync catches up.
+          // Keep showing local paid rows so earnings do not flash back to ₹0.
+          if (response.data!.isEmpty && localTransactions.isNotEmpty) {
+            return TransactionLedgerData(
+              transactions: localTransactions,
+              isOffline: false,
+              lastUpdated: DateTime.now(),
+            );
+          }
+
+          final merged = <String, Transaction>{
+            for (final tx in localTransactions) tx.id: tx,
+            for (final tx in response.data!) tx.id: tx,
+          };
+          final list = merged.values.toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
           return TransactionLedgerData(
-            transactions: response.data!,
+            transactions: list,
             isOffline: false,
             lastUpdated: DateTime.now(),
           );
@@ -102,7 +121,6 @@ class TransactionRepository {
     }
 
     // Offline / Fallback Flow: Read from local SQLite
-    final localTransactions = await _dbService.getTransactions();
     return TransactionLedgerData(
       transactions: localTransactions,
       isOffline: true,

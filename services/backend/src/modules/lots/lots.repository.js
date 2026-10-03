@@ -323,15 +323,26 @@ async function findByLotNumber(lotNumber, { client } = {}) {
  * the whole request, so the lot-number fallback below would be unreachable.
  */
 async function findByAnyIdentifier(identifier, options = {}) {
-  if (isUuid(identifier)) {
-    const byPublicId = await findByPublicId(identifier.trim(), options);
+  const value = String(identifier || "").trim();
+  if (!value) {
+    return null;
+  }
 
+  if (isUuid(value)) {
+    const byPublicId = await findByPublicId(value, options);
     if (byPublicId) {
       return byPublicId;
     }
+
+    // Collector offline lots keep the device UUID as client_reference while
+    // the API exposes a different public_id. Handover sync sends that local id.
+    const byClientReference = await findByClientReference(value, options);
+    if (byClientReference) {
+      return byClientReference;
+    }
   }
 
-  return findByLotNumber(String(identifier).trim().toUpperCase(), options);
+  return findByLotNumber(value.toUpperCase(), options);
 }
 
 async function findById(id, { client } = {}) {

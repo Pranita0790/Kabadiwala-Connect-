@@ -119,6 +119,8 @@ const MATERIAL_ID_BY_CLASS = Object.freeze({
   motor: "motor",
   magnet_bearing_assembly: "magnet-bearing-assembly",
   mixed_plastics: "mixed-plastics",
+  paper: "paper",
+  book: "book",
 });
 
 const LOT_ID_PREFIX = "KC";

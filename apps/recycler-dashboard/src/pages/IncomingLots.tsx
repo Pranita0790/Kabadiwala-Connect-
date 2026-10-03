@@ -40,9 +40,7 @@ function IncomingLots() {
      LOT DATA
   ========================== */
 
-  const [lots, setLots] = useState(
-    getStoredLots
-  );
+  const [lots, setLots] = useState(() => getStoredLots());
 
   /* =========================
      SEARCH
@@ -105,7 +103,7 @@ function IncomingLots() {
 
       const matchesStatus =
         status === "All" ||
-        lot.status === status;
+        String(lot.status).toLowerCase() === status.toLowerCase();
 
       return (
         matchesSearch &&
@@ -547,7 +545,9 @@ function IncomingLots() {
             </strong>
 
             <span>
-              Try changing your search or status filter.
+              {lots.length === 0
+                ? "No lots on the server yet. Login in the collector app, save a lot, tap Sync, then click All (new lots are Pending, not Accepted)."
+                : "Try All instead of Accepted — new lots arrive as Pending until you accept them."}
             </span>
 
           </div>

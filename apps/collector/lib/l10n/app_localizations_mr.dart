@@ -239,6 +239,15 @@ class AppLocalizationsMr extends AppLocalizations {
   String get categoryAppliances => 'विद्युत उपकरणे (Appliances)';
 
   @override
+  String get categoryPlastic => 'प्लास्टिक (Plastic)';
+
+  @override
+  String get categoryPaper => 'कागद (Paper)';
+
+  @override
+  String get categoryBook => 'पुस्तके (Books)';
+
+  @override
   String get categoryMixed => 'मिश्र ई-कचरा (Mixed E-Waste)';
 
   @override

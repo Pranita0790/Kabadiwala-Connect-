@@ -1,10 +1,12 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ??
-  "https://kabadiwala-backend-69wr.onrender.com/api";
+  "http://10.1.106.69:5000/api";
 
 const TOKEN_KEY = "kabadiwala-access-token";
 const REFRESH_KEY = "kabadiwala-refresh-token";
 const USER_KEY = "kabadiwala-auth-user";
+
+let refreshInFlight: Promise<boolean> | null = null;
 
 export type AuthUser = {
   id: string;
@@ -52,9 +54,64 @@ export function saveSession(payload: {
   localStorage.setItem(USER_KEY, JSON.stringify(payload.user));
 }
 
+async function refreshAccessToken(): Promise<boolean> {
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = (async () => {
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    if (!refreshToken) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        data?: { accessToken?: string; refreshToken?: string };
+        accessToken?: string;
+        refreshToken?: string;
+      } | null;
+
+      const access =
+        body?.data?.accessToken ?? body?.accessToken ?? null;
+      const nextRefresh =
+        body?.data?.refreshToken ?? body?.refreshToken ?? null;
+
+      if (!response.ok || !access) {
+        return false;
+      }
+
+      localStorage.setItem(TOKEN_KEY, access);
+      if (nextRefresh) {
+        localStorage.setItem(REFRESH_KEY, nextRefresh);
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+const PUBLIC_AUTH_PATHS = new Set([
+  "/auth/login",
+  "/auth/register",
+  "/auth/recyclers/register",
+  "/auth/refresh",
+]);
+
 export async function apiFetch<T = unknown>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  allowRetry = true
 ): Promise<{ ok: boolean; status: number; data: T; raw: unknown }> {
   const headers = new Headers(options.headers || {});
   if (!headers.has("Content-Type") && options.body) {
@@ -62,25 +119,53 @@ export async function apiFetch<T = unknown>(
   }
 
   const token = getAccessToken();
-  if (token) {
+  if (token && !PUBLIC_AUTH_PATHS.has(path)) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error(
+      "Cannot reach backend. Confirm the API is running on http://localhost:5000."
+    );
+  }
 
   let raw: unknown = null;
+  let status = response.status;
+  let ok = response.ok;
+
   try {
     raw = await response.json();
   } catch {
     raw = null;
   }
 
+  const code =
+    raw && typeof raw === "object" && "code" in raw
+      ? String((raw as { code?: string }).code || "")
+      : "";
+
+  if (
+    allowRetry &&
+    status === 401 &&
+    !PUBLIC_AUTH_PATHS.has(path) &&
+    (code === "TOKEN_EXPIRED" || code === "UNAUTHORIZED" || !code)
+  ) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return apiFetch<T>(path, options, false);
+    }
+  }
+
   return {
-    ok: response.ok,
-    status: response.status,
+    ok,
+    status,
     data: raw as T,
     raw,
   };
@@ -93,24 +178,28 @@ export async function loginWithPassword(
   const result = await apiFetch<{
     success?: boolean;
     message?: string;
+    code?: string;
     data?: {
       accessToken?: string;
       refreshToken?: string;
       user?: AuthUser;
     };
+    accessToken?: string;
+    refreshToken?: string;
+    user?: AuthUser;
   }>("/auth/login", {
     method: "POST",
     body: JSON.stringify({ identifier, password }),
   });
 
   const body = result.data;
-  const access = body?.data?.accessToken;
-  const user = body?.data?.user;
+  const access = body?.data?.accessToken ?? body?.accessToken;
+  const user = body?.data?.user ?? body?.user;
 
   if (!result.ok || !access || !user) {
     return {
       success: false,
-      message: body?.message || "Login failed",
+      message: body?.message || body?.code || "Login failed",
     };
   }
 
@@ -123,11 +212,70 @@ export async function loginWithPassword(
 
   saveSession({
     accessToken: access,
-    refreshToken: body?.data?.refreshToken,
+    refreshToken: body?.data?.refreshToken ?? body?.refreshToken,
     user,
   });
 
   return { success: true, user };
+}
+
+export type RecyclerSignupInput = {
+  fullName: string;
+  phone: string;
+  email?: string;
+  password: string;
+  organisationName: string;
+  address?: string;
+  city?: string;
+  region?: string;
+};
+
+export async function registerRecyclerAccount(
+  input: RecyclerSignupInput
+): Promise<{ success: boolean; message?: string }> {
+  const result = await apiFetch<{
+    success?: boolean;
+    message?: string;
+    code?: string;
+  }>("/auth/recyclers/register", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+
+  if (!result.ok) {
+    return {
+      success: false,
+      message:
+        (result.data as { message?: string; code?: string })?.message ||
+        (result.data as { code?: string })?.code ||
+        "Registration failed",
+    };
+  }
+
+  return {
+    success: true,
+    message:
+      (result.data as { message?: string })?.message ||
+      "Account created. You can sign in now.",
+  };
+}
+
+export async function fetchBackendHealth(): Promise<{
+  ok: boolean;
+  message: string;
+}> {
+  try {
+    const root = API_BASE.replace(/\/api\/?$/, "");
+    const response = await fetch(`${root}/health`, {
+      method: "GET",
+    });
+    if (!response.ok) {
+      return { ok: false, message: `Health check failed (${response.status})` };
+    }
+    return { ok: true, message: "Backend is reachable" };
+  } catch {
+    return { ok: false, message: "Cannot reach backend" };
+  }
 }
 
 export type BackendLot = {

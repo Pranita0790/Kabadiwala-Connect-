@@ -96,24 +96,24 @@ class SyncStatusBar extends StatelessWidget {
           ),
           if (showSyncButton) ...[
             const SizedBox(width: 8),
-            SizedBox(
-              height: 40,
-              child: ElevatedButton.icon(
-                onPressed: onSyncPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: textColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+            TextButton(
+              onPressed: onSyncPressed,
+              style: TextButton.styleFrom(
+                backgroundColor: textColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: const Size(0, 36),
+                maximumSize: const Size(160, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                icon: const Icon(Icons.refresh, size: 18),
-                label: Text(
-                  loc.translate('syncNow'),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+              child: Text(loc.translate('syncNow')),
             ),
           ],
         ],

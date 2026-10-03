@@ -14,7 +14,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { Lot } from "../data/mockLots";
 import { getStoredLots } from "../data/lotsStore";
 
-const API_BASE = "https://kabadiwala-backend-69wr.onrender.com/api";
+import { getApiBase } from "../lib/api";
+
+const API_BASE = getApiBase();
 
 type JourneyStatus = "completed" | "current" | "pending";
 

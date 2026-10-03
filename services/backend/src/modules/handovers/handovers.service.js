@@ -22,16 +22,104 @@ function isUuid(value) {
   );
 }
 
+async function ensureLotForHandover(input, user, lotIdentifier) {
+  let lot = await lotsRepository.findByAnyIdentifier(lotIdentifier);
+  if (lot) {
+    return lot;
+  }
+
+  // Offline devices often sync handovers before POST /api/lots succeeds.
+  // Auto-create an idempotent lot so the recycler web dashboard can see it.
+  // Allow COLLECTOR, RECYCLER (demo/same device), and ADMIN.
+  if (
+    user.role !== userRole.COLLECTOR &&
+    user.role !== userRole.RECYCLER &&
+    user.role !== userRole.ADMIN
+  ) {
+    throw new NotFoundError(`Lot "${lotIdentifier}" not found`);
+  }
+
+  const clientReference = isUuid(lotIdentifier) ? lotIdentifier : null;
+  const materialCategory =
+    input.materialCategory || input.material_category || "mixed";
+  const weightKg = Number(input.weightKg ?? input.weight_kg ?? 0);
+  const agreedAmount = Number(input.agreedAmount ?? input.agreed_amount ?? 0);
+
+  const created = await lotsService.create(
+    {
+      clientReference,
+      materialId: null,
+      categoryName: materialCategory,
+      condition: "Scrap",
+      weightKg: Number.isFinite(weightKg) ? weightKg : 0,
+      notes: "Auto-created from handover sync",
+      estimatedValue: Number.isFinite(agreedAmount) ? agreedAmount : null,
+    },
+    user
+  );
+
+  lot = created.lot;
+  if (!lot) {
+    throw new NotFoundError(`Lot "${lotIdentifier}" not found`);
+  }
+  return lot;
+}
+
+async function assignRecyclerToLot(lot, recyclerId) {
+  if (!recyclerId || !lot?.internalId) {
+    return lot;
+  }
+  if (lot.recyclerId === recyclerId) {
+    return lot;
+  }
+
+  try {
+    const { lot: updated } = await lotsRepository.update(lot.internalId, {
+      recyclerId,
+    });
+    return updated || lot;
+  } catch {
+    return lot;
+  }
+}
+
+async function advanceLotTowardHandover(lot, user) {
+  // Status machine: PENDING -> ACCEPTED -> HANDOVER (no skipping).
+  let current = lot;
+  try {
+    if (current.status === lotStatus.PENDING) {
+      const accepted = await lotsService.changeStatus(
+        current.id,
+        lotStatus.ACCEPTED,
+        user,
+        { note: "Auto-accepted for handover sync" }
+      );
+      current = accepted?.lot || current;
+    }
+  } catch {
+    // May already be accepted / claimed by another path.
+  }
+
+  try {
+    const fresh = await lotsRepository.findByAnyIdentifier(current.id);
+    current = fresh || current;
+    if (current.status === lotStatus.ACCEPTED) {
+      await lotsService.changeStatus(current.id, lotStatus.HANDOVER, user, {
+        note: "Handover created",
+      });
+    }
+  } catch {
+    // Handover row still exists even if status transition is refused.
+  }
+}
+
 async function create(input, user) {
   const lotIdentifier = input.lotId || input.lot_id;
   if (!lotIdentifier) {
     throw new ValidationError("lotId is required");
   }
 
-  const lot = await lotsRepository.findByAnyIdentifier(lotIdentifier);
-  if (!lot) {
-    throw new NotFoundError(`Lot "${lotIdentifier}" not found`);
-  }
+  let lot = await ensureLotForHandover(input, user, lotIdentifier);
 
   lotsService.assertCanView(lot, user);
 
@@ -52,6 +140,12 @@ async function create(input, user) {
     }
   }
 
+  // Bind the lot to ORG (or whichever recycler was selected) so GET /api/lots
+  // on the recycler dashboard returns it immediately.
+  if (recyclerId) {
+    lot = await assignRecyclerToLot(lot, recyclerId);
+  }
+
   const { handover, created } = await repository.create({
     clientReference,
     lotInternalId: lot.internalId,
@@ -69,25 +163,14 @@ async function create(input, user) {
     qrToken: input.qrPayload || input.qr_payload || clientReference,
   });
 
-  // Starting a handover moves the lot into HANDOVER when it is already accepted
-  // (or still pending for demo flows where accept was skipped).
-  if (
-    created &&
-    (lot.status === lotStatus.ACCEPTED || lot.status === lotStatus.PENDING)
-  ) {
-    try {
-      await lotsService.changeStatus(lot.id, lotStatus.HANDOVER, user, {
-        note: "Handover created",
-      });
-    } catch {
-      // Status machine may refuse; handover row still exists for confirmation.
-    }
+  if (created) {
+    await advanceLotTowardHandover(lot, user);
   }
 
   return { handover, created };
 }
 
-async function confirm(handoverId, user) {
+async function confirm(handoverId, user, options = {}) {
   const raw = await repository.findRawByPublicId(handoverId);
   if (!raw) {
     throw new NotFoundError(`Handover "${handoverId}" not found`);
@@ -109,10 +192,17 @@ async function confirm(handoverId, user) {
     throw new AuthorizationError("You cannot confirm this handover");
   }
 
-  // Dual confirmation: each party stamps their side; admin stamps both.
+  // Demo / single-device confirm stamps both sides so a transactions row is
+  // created without a second actor. Allowed for the lot owner, assigned
+  // recycler, or admin (collector app often uses the ORG recycler JWT).
+  const completeBoth =
+    Boolean(options.completeBoth || options.demoComplete) &&
+    (isCollector || isRecycler || isAdmin);
+
+  // Dual confirmation: each party stamps their side; admin / demo stamps both.
   const handover = await repository.markConfirmed(raw.id, {
-    byCollector: isCollector || isAdmin,
-    byRecycler: isRecycler || isAdmin,
+    byCollector: isCollector || isAdmin || completeBoth,
+    byRecycler: isRecycler || isAdmin || completeBoth,
   });
 
   if (handover?.status === "CONFIRMED") {

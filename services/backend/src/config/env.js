@@ -164,8 +164,9 @@ const config = {
     host: optional("DB_HOST", "localhost"),
     port: toInt("DB_PORT", 5432),
     name: optional("DB_NAME", "kabadiwala"),
-    user: optional("DB_USER", "postgres"),
-    password: optional("DB_PASSWORD", ""),
+    user: String(optional("DB_USER", "postgres") ?? "postgres"),
+    // pg SCRAM requires a string password (numeric .env values must not stay as numbers).
+    password: String(optional("DB_PASSWORD", "") ?? ""),
     ssl: toBool("DB_SSL", false),
     max: toInt("DB_POOL_MAX", 10),
     idleTimeoutMillis: toInt("DB_IDLE_TIMEOUT_MS", 30_000),

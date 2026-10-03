@@ -37,6 +37,24 @@ RATE_CARD: dict[tuple[str, str], MaterialRate] = {
         source="Scrapprice Mumbai mixed plastic benchmark",
         effective_date="2026-09-15",
     ),
+
+    ("paper", "mumbai"): MaterialRate(
+        material="paper",
+        subcategory=None,
+        city="Mumbai",
+        rate_per_kg_inr=12.00,
+        source="Local kabadi paper benchmark",
+        effective_date="2026-09-15",
+    ),
+
+    ("book", "mumbai"): MaterialRate(
+        material="book",
+        subcategory=None,
+        city="Mumbai",
+        rate_per_kg_inr=10.00,
+        source="Local kabadi book / raddi benchmark",
+        effective_date="2026-09-15",
+    ),
 }
 
 

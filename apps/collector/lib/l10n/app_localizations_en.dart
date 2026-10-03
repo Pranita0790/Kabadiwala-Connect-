@@ -238,6 +238,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get categoryAppliances => 'Heavy Electricals';
 
   @override
+  String get categoryPlastic => 'Plastic';
+
+  @override
+  String get categoryPaper => 'Paper';
+
+  @override
+  String get categoryBook => 'Books';
+
+  @override
   String get categoryMixed => 'Mixed E-Waste';
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/formatters.dart';
 import '../../repositories/lot_repository.dart';
@@ -31,7 +32,6 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
   // Configure AI service implementation
   // Flutter calls the Node.js backend; the backend forwards to FastAPI internally.
   static const bool _useMockAi = bool.fromEnvironment('USE_MOCK_AI', defaultValue: false);
-  static const String _backendUrl = String.fromEnvironment('BACKEND_URL', defaultValue: 'http://10.0.2.2:5000');
 
   @override
   void initState() {
@@ -40,18 +40,19 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
     _aiService = widget.aiService ?? 
         (_useMockAi 
             ? MockAiClassificationService() 
-            : RemoteAiClassificationService(baseUrl: _backendUrl));
+            : RemoteAiClassificationService(baseUrl: AppConstants.backendBaseUrl));
   }
 
 
   String? _imagePath;
-  String _selectedCategoryId = 'pcb_motherboard';
+  String _selectedCategoryId = 'mixed_ewaste';
   double _weightKg = 5.0;
-  String _selectedCondition = 'good';
+  String _selectedCondition = 'average';
 
   bool _isAnalyzingAi = false;
   bool _isSaving = false;
   bool _isAiSuggested = false;
+  bool _aiAnalysisFailed = false;
 
   final List<Map<String, String>> _categoryDefinitions = const [
     {'id': 'pcb_motherboard', 'key': 'categoryPcb', 'defaultName': 'Motherboard / PCB'},
@@ -59,6 +60,9 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
     {'id': 'battery', 'key': 'categoryBattery', 'defaultName': 'Batteries'},
     {'id': 'display_monitor', 'key': 'categoryDisplay', 'defaultName': 'Monitors & Displays'},
     {'id': 'heavy_appliances', 'key': 'categoryAppliances', 'defaultName': 'Heavy Electricals'},
+    {'id': 'plastic', 'key': 'categoryPlastic', 'defaultName': 'Plastic'},
+    {'id': 'paper', 'key': 'categoryPaper', 'defaultName': 'Paper'},
+    {'id': 'book', 'key': 'categoryBook', 'defaultName': 'Books'},
     {'id': 'mixed_ewaste', 'key': 'categoryMixed', 'defaultName': 'Mixed E-Waste'},
   ];
 
@@ -72,19 +76,38 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
     }
   }
 
-  /// Triggers AI classification abstraction (Mock AI interface execution)
+  /// Triggers AI classification via the Node.js backend gateway.
   Future<void> _triggerAiClassification(String path) async {
-    setState(() => _isAnalyzingAi = true);
+    setState(() {
+      _isAnalyzingAi = true;
+      _aiAnalysisFailed = false;
+      _isAiSuggested = false;
+    });
+
     final result = await _aiService.classifyEWasteImage(path);
-    if (mounted && result != null) {
-      setState(() {
+    if (!mounted) return;
+
+    final loc = AppLocalizations.of(context);
+    setState(() {
+      _isAnalyzingAi = false;
+      if (result != null) {
         _selectedCategoryId = result.categoryId;
-        _isAnalyzingAi = false;
-        if (result.isMockResult) {
-          _isAiSuggested = true;
+        if (result.weightKg != null && result.weightKg! > 0) {
+          _weightKg = result.weightKg!.clamp(0.5, 1000.0);
         }
-      });
-    }
+        if (result.condition != null) {
+          _selectedCondition = result.condition!;
+        }
+        final percent = (result.confidenceScore * 100).clamp(0, 100).round();
+        final categoryName = _getCategoryName(result.categoryId, loc);
+        _notesController.text =
+            '${loc.translate('suggestedAi')}: $categoryName ($percent%) · ${Formatters.weight(_weightKg)}';
+        _isAiSuggested = true;
+        _aiAnalysisFailed = false;
+      } else {
+        _aiAnalysisFailed = true;
+      }
+    });
   }
 
   String _getCategoryName(String id, AppLocalizations loc) {
@@ -99,6 +122,29 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
     return match['defaultName'] ?? id;
   }
 
+  (double, double) _priceRatesFor(String categoryId) {
+    switch (categoryId) {
+      case 'copper_wire':
+        return (450.0, 620.0);
+      case 'pcb_motherboard':
+        return (240.0, 290.0);
+      case 'battery':
+        return (70.0, 110.0);
+      case 'display_monitor':
+        return (100.0, 200.0);
+      case 'heavy_appliances':
+        return (80.0, 160.0);
+      case 'plastic':
+        return (12.0, 25.0);
+      case 'paper':
+        return (8.0, 15.0);
+      case 'book':
+        return (6.0, 12.0);
+      default:
+        return (50.0, 100.0);
+    }
+  }
+
   /// Rule: Local-first save. Persists metadata to SQLite with UUID v4 and PENDING_SYNC status
   Future<void> _handleSave(AppLocalizations loc) async {
     if (!_formKey.currentState!.validate()) return;
@@ -111,8 +157,9 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
 
     setState(() => _isSaving = true);
 
-    final minPriceRate = _selectedCategoryId == 'copper_wire' ? 450.0 : 280.0;
-    final maxPriceRate = _selectedCategoryId == 'copper_wire' ? 620.0 : 420.0;
+    final rates = _priceRatesFor(_selectedCategoryId);
+    final minPriceRate = rates.$1;
+    final maxPriceRate = rates.$2;
     final categoryName = _getCategoryName(_selectedCategoryId, loc);
 
     await _lotRepository.saveLotLocally(
@@ -186,7 +233,7 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2.5),
                       ),
                       const SizedBox(width: 12),
-                      Text(loc.translate('analyzingAi')),
+                      Expanded(child: Text(loc.translate('analyzingAi'))),
                     ],
                   ),
                 )
@@ -203,9 +250,40 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
                     children: [
                       const Icon(Icons.auto_awesome, color: AppColors.accent, size: 20),
                       const SizedBox(width: 8),
-                      Text(
+                      Expanded(
+                        child: Text(
                         loc.translate('suggestedAi'),
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (_aiAnalysisFailed && _imagePath != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.shade700),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange.shade800, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          loc.translate('aiAnalysisFailed'),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.orange.shade900,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => _triggerAiClassification(_imagePath!),
+                        child: Text(loc.translate('retryAi')),
                       ),
                     ],
                   ),
@@ -218,6 +296,9 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
+                // Rebuild when AI (or the user) changes the category so the
+                // dropdown reflects the suggestion, not only the first value.
+                key: ValueKey(_selectedCategoryId),
                 initialValue: _selectedCategoryId,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
@@ -234,6 +315,7 @@ class _CreateLotScreenState extends State<CreateLotScreen> {
                   if (val != null) {
                     setState(() {
                       _selectedCategoryId = val;
+                      _isAiSuggested = false;
                     });
                   }
                 },

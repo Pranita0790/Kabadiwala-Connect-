@@ -1,9 +1,18 @@
 class AppConstants {
-
   static const String appName = 'Kabadiwala Connect';
 
-  static const String apiBaseUrl =
-      'https://kabadiwala-backend-69wr.onrender.com/api';
+  /// Override at build/run time if your Wi-Fi IP changes:
+  /// `--dart-define=BACKEND_URL=http://YOUR_IP:5000`
+  /// `--dart-define=API_BASE_URL=http://YOUR_IP:5000/api`
+  static const String backendBaseUrl = String.fromEnvironment(
+    'BACKEND_URL',
+    defaultValue: 'http://10.1.106.69:5000',
+  );
+
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.1.106.69:5000/api',
+  );
 
   static const String appVersion = '1.0.0';
 
@@ -70,4 +79,3 @@ class DemoAuth {
   /// real secret. The sign-in screen takes the password from the person using
   /// it.
 }
-
