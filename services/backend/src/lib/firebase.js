@@ -50,7 +50,7 @@ const {
 
 const config = require("../config/env");
 const logger = require("./logger");
-const { AuthenticationError } = require("./errors");
+const { AuthenticationError, ServiceUnavailableError } = require("./errors");
 
 const ISSUER_PREFIX = "https://securetoken.google.com/";
 
@@ -95,8 +95,9 @@ function isEnabled() {
  */
 async function verifyIdToken(idToken) {
   if (!isEnabled()) {
-    // A configuration fault must not look like a rejected credential.
-    throw new AuthenticationError(
+    // A configuration fault must not look like a rejected credential: 503, not
+    // 401. The caller's token may be fine; the server is missing a setting.
+    throw new ServiceUnavailableError(
       "Phone sign-in is not configured on this server.",
       "FIREBASE_NOT_CONFIGURED"
     );

@@ -81,6 +81,9 @@ ios/Pods/
 ios/.symlinks/
 ios/Flutter/ephemeral/
 
+# Xcode Swift Package Manager (regenerated on build)
+**/xcshareddata/swiftpm/
+
 # ==============================
 # Test / coverage
 # ==============================

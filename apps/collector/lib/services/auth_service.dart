@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:math';
-import 'package:flutter/foundation.dart';
 import '../models/user_profile.dart';
 import 'database_service.dart';
 
@@ -18,8 +15,11 @@ class AuthVerificationResult {
   });
 }
 
-/// Offline-first Authentication Service.
-/// Handles password login, OTP simulation for sign up, and user management with SQLite.
+/// Local profile store for the signed-in collector.
+///
+/// Firebase owns phone verification and the backend owns the session; this
+/// service only persists the collector's profile in SQLite so the app works
+/// with no signal. A collector account has no password.
 class AuthService {
   static AuthService? _instance;
   final DatabaseService _dbService;
@@ -53,17 +53,6 @@ class AuthService {
     return 'invalidPhoneLength';
   }
 
-  /// Validates password length and presence
-  static String? validatePassword(String? input) {
-    if (input == null || input.trim().isEmpty) {
-      return 'emptyPassword';
-    }
-    if (input.trim().length < 6) {
-      return 'passwordLengthError';
-    }
-    return null;
-  }
-
   /// Normalizes phone number into standard '+91XXXXXXXXXX'
   static String normalizePhoneNumber(String input) {
     final digits = input.replaceAll(RegExp(r'\D'), '');
@@ -74,13 +63,6 @@ class AuthService {
       return '+$digits';
     }
     return input.trim();
-  }
-
-  /// Checks if a mobile number is already registered in local SQLite
-  Future<bool> checkUserExists(String rawPhone) async {
-    final cleanPhone = normalizePhoneNumber(rawPhone);
-    final user = await _dbService.getUserByPhone(cleanPhone);
-    return user != null && user.isProfileComplete;
   }
 
   /// Saves a newly created or completed user profile.

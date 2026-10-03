@@ -4,6 +4,8 @@ import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
+import '../firebase_options.dart';
+
 /// Why a phone sign-in attempt could not be completed.
 ///
 /// Deliberately a closed set: the UI branches on these, so an unknown Firebase
@@ -106,13 +108,23 @@ class FirebaseAuthService {
     if (_initialised) return true;
 
     try {
-      await Firebase.initializeApp();
+      /*
+       | Options are always passed explicitly rather than read from
+       | google-services.json. That keeps the build reproducible from
+       | --dart-define-from-file and means the app id it registers with is the
+       | same one the backend expects. On a `flutterfire configure` project the
+       | generated DefaultFirebaseOptions still fits, so both paths work.
+       */
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
       _initialised = true;
       return true;
     } catch (error) {
       developer.log(
         'Firebase initialisation failed. Phone sign-in is unavailable. '
-        'Run `flutterfire configure` to generate firebase_options.dart.',
+        'Set FIREBASE_* in apps/collector/.env and build with '
+        '--dart-define-from-file=.env, or run `flutterfire configure`.',
         name: 'collector.firebase',
         error: error,
       );

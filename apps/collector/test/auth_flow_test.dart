@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,18 +16,92 @@ import 'package:kabadiwala_connect/repositories/transaction_repository.dart';
 import 'package:kabadiwala_connect/main.dart';
 import 'package:kabadiwala_connect/screens/auth/auth_landing_screen.dart';
 import 'package:kabadiwala_connect/screens/auth/login_screen.dart';
-import 'package:kabadiwala_connect/screens/auth/sign_up_screen.dart';
 import 'package:kabadiwala_connect/screens/auth/onboarding_screen.dart';
 import 'package:kabadiwala_connect/screens/auth/otp_verification_screen.dart';
 import 'package:kabadiwala_connect/screens/auth/profile_setup_screen.dart';
+import 'package:kabadiwala_connect/screens/auth/sign_up_screen.dart';
 import 'package:kabadiwala_connect/screens/profile/edit_profile_screen.dart';
 import 'package:kabadiwala_connect/screens/profile/profile_screen.dart';
 import 'package:kabadiwala_connect/services/api_service.dart';
 import 'package:kabadiwala_connect/services/auth_service.dart';
+import 'package:kabadiwala_connect/services/collector_auth_service.dart';
 import 'package:kabadiwala_connect/services/connectivity_service.dart';
 import 'package:kabadiwala_connect/services/database_service.dart';
+import 'package:kabadiwala_connect/services/firebase_auth_service.dart';
 import 'package:kabadiwala_connect/services/notification_service.dart';
 import 'package:kabadiwala_connect/services/sync_service.dart';
+
+/// A Firebase stand-in: no network, no SDK, deterministic.
+///
+/// The real FirebaseAuthService delegates to the Firebase SDK, which cannot
+/// run in a unit test. Overriding the three methods the controller calls keeps
+/// the flow (request -> verify -> exchange) under test without the SDK.
+class _FakeFirebaseAuth extends FirebaseAuthService {
+  _FakeFirebaseAuth({this.failSend = false, this.failVerify = false});
+
+  final bool failSend;
+  final bool failVerify;
+
+  int sendCount = 0;
+  int verifyCount = 0;
+  bool signedOut = false;
+
+  @override
+  Future<String> requestCode(String phone, {Completer<void>? completer}) async {
+    sendCount++;
+    if (failSend) {
+      throw const PhoneAuthException(PhoneAuthFailure.sendFailed);
+    }
+    return 'verification-id';
+  }
+
+  @override
+  Future<PhoneAuthIdentity> verifyCode({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    verifyCount++;
+    if (failVerify) {
+      throw const PhoneAuthException(PhoneAuthFailure.invalidCode);
+    }
+    return const PhoneAuthIdentity(idToken: 'id-token', firebaseUid: 'firebase-uid');
+  }
+
+  @override
+  Future<void> signOut() async {
+    signedOut = true;
+  }
+}
+
+/// A backend stand-in for the token exchange.
+class _FakeCollectorAuth extends CollectorAuthService {
+  _FakeCollectorAuth(this._store)
+      : super(apiBaseUrl: 'http://test.invalid/api', sessionStore: _store);
+
+  final SessionStore _store;
+  bool created = true;
+  String lastToken = '';
+
+  @override
+  Future<SessionExchangeResult> exchangeFirebaseToken({
+    required String firebaseIdToken,
+    String? fullName,
+  }) async {
+    lastToken = firebaseIdToken;
+
+    final session = CollectorSession(
+      userId: 'backend-user-1',
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      role: 'COLLECTOR',
+      needsProfile: created,
+    );
+
+    await _store.write(session);
+
+    return SessionExchangeResult(session: session, created: created);
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -35,12 +111,22 @@ void main() {
   late Directory tempDir;
   late DatabaseService dbService;
   late AuthService authService;
+  late SessionStore sessionStore;
+  late _FakeFirebaseAuth fakeFirebase;
+  late _FakeCollectorAuth fakeCollectorAuth;
   late AuthController authController;
   late LocaleController localeController;
   late SyncService syncService;
   late LotRepository lotRepository;
   late TransactionRepository transactionRepository;
   late PriceRepository priceRepository;
+
+  AuthController buildController() => AuthController(
+        authService: authService,
+        firebaseAuth: fakeFirebase,
+        sessionStore: sessionStore,
+        collectorAuth: fakeCollectorAuth,
+      );
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('sih26_auth_test_');
@@ -51,7 +137,10 @@ void main() {
     dbService = DatabaseService.instance;
     await dbService.database;
     authService = AuthService(dbService: dbService);
-    authController = AuthController(authService: authService);
+    sessionStore = SessionStore(db: dbService);
+    fakeFirebase = _FakeFirebaseAuth();
+    fakeCollectorAuth = _FakeCollectorAuth(sessionStore);
+    authController = buildController();
     await authController.initialize();
     AuthController.setInstance(authController);
     localeController = LocaleController(dbService: dbService);
@@ -110,13 +199,15 @@ void main() {
         '/auth-landing': (context) => const AuthLandingScreen(),
         '/login': (context) => LoginScreen(authController: authController),
         '/signup': (context) => SignUpScreen(authController: authController),
-        '/profile-setup': (context) => ProfileSetupScreen(authController: authController),
+        '/profile-setup': (context) =>
+            ProfileSetupScreen(authController: authController),
         '/onboarding': (context) => const OnboardingScreen(),
         '/profile': (context) => ProfileScreen(
               authController: authController,
               localeController: localeController,
             ),
-        '/edit-profile': (context) => EditProfileScreen(authController: authController),
+        '/edit-profile': (context) =>
+            EditProfileScreen(authController: authController),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/otp') {
@@ -135,132 +226,155 @@ void main() {
     );
   }
 
-  group('AuthService & AuthController Unit Tests', () {
-    test('Phone number and Password validation rules', () {
+  group('Phone rules', () {
+    test('validateIndianMobile accepts Indian mobiles and rejects the rest', () {
       expect(AuthService.validateIndianMobile(null), 'emptyPhone');
       expect(AuthService.validateIndianMobile(''), 'emptyPhone');
       expect(AuthService.validateIndianMobile('12345'), 'invalidPhoneLength');
-      expect(AuthService.validateIndianMobile('1234567890'), 'invalidStartDigit');
+      expect(
+        AuthService.validateIndianMobile('1234567890'),
+        'invalidStartDigit',
+      );
       expect(AuthService.validateIndianMobile('9876543210'), isNull);
       expect(AuthService.validateIndianMobile('+91 98765 43210'), isNull);
-
-      expect(AuthService.validatePassword(null), 'emptyPassword');
-      expect(AuthService.validatePassword('123'), 'passwordLengthError');
-      expect(AuthService.validatePassword('123456'), isNull);
     });
 
-    test('Scenario A: Sign Up flow initiates OTP and creates user upon verification', () async {
-      final initiated = await authController.initiateSignUp(
+    test('normaliseIndianPhone is the E.164 form the backend keys on', () {
+      expect(normaliseIndianPhone('9876543210'), '+919876543210');
+      expect(normaliseIndianPhone('+91 98765 43210'), '+919876543210');
+      expect(normaliseIndianPhone('+919876543210'), '+919876543210');
+      expect(normaliseIndianPhone('09876543210'), '+919876543210');
+
+      // Not Indian mobiles.
+      expect(normaliseIndianPhone('4155552671'), isNull);
+      expect(normaliseIndianPhone('+14155552671'), isNull);
+      expect(normaliseIndianPhone('12345'), isNull);
+      expect(normaliseIndianPhone(''), isNull);
+    });
+  });
+
+  group('Phone sign-in flow', () {
+    test('sign-up sends a code, verifies it, and stores the profile', () async {
+      await authController.initiateSignUp(
         name: 'Ramesh Shinde',
-        phone: '9876543210',
-        password: 'securePassword123',
+        phoneNumber: '9876543210',
         city: 'Pune',
         role: 'collector',
       );
-      expect(initiated, isTrue);
+
+      expect(fakeFirebase.sendCount, 1);
       expect(authController.pendingPhoneNumber, '9876543210');
+      expect(authController.errorMessage, isNull);
 
-      // Verify with incorrect OTP
-      final badResult = await authController.verifyOtp('000000');
-      expect(badResult.success, isFalse);
+      final result = await authController.verifyOtp('123456');
 
-      // Verify with universal demo OTP '123456'
-      final goodResult = await authController.verifyOtp('123456');
-      expect(goodResult.success, isTrue);
-      expect(goodResult.isNewUser, isTrue);
+      expect(result.success, isTrue);
+      expect(result.isNewUser, isTrue);
       expect(authController.isAuthenticated, isTrue);
       expect(authController.currentUser?.name, 'Ramesh Shinde');
       expect(authController.currentUser?.city, 'Pune');
+      expect(authController.currentUser?.backendUserId, 'backend-user-1');
 
-      // Verify user saved locally in SQLite
-      final savedUser = await dbService.getUser(authController.currentUser!.id);
-      expect(savedUser, isNotNull);
-      expect(savedUser!.name, 'Ramesh Shinde');
-      expect(savedUser.passwordHash, isNotNull);
+      // The Firebase ID token is what the backend received, and the local
+      // Firebase session is dropped afterwards.
+      expect(fakeCollectorAuth.lastToken, 'id-token');
+      expect(fakeFirebase.signedOut, isTrue);
     });
 
-    test('Scenario B: Existing user Login with password (NO OTP required)', () async {
-      // 1. Create existing user
-      final createdUser = await authService.createAccountWithPassword(
-        name: 'Suresh Patil',
+    test('a wrong code fails and surfaces the reason', () async {
+      fakeFirebase = _FakeFirebaseAuth(failVerify: true);
+      fakeCollectorAuth = _FakeCollectorAuth(sessionStore);
+      authController = buildController();
+
+      await authController.initiateSignUp(
+        name: 'Ramesh',
         phoneNumber: '9876543210',
-        password: 'myPassword123',
         city: 'Pune',
-        role: 'collector',
       );
-      expect(createdUser, isNotNull);
 
-      // 2. Attempt login with bad password
-      final badLogin = await authController.login(
-        phone: '9876543210',
-        password: 'wrongPassword',
-      );
-      expect(badLogin.success, isFalse);
+      final result = await authController.verifyOtp('000000');
+
+      expect(result.success, isFalse);
       expect(authController.isAuthenticated, isFalse);
-
-      // 3. Attempt login with correct password -> directly authenticated
-      final goodLogin = await authController.login(
-        phone: '9876543210',
-        password: 'myPassword123',
-      );
-      expect(goodLogin.success, isTrue);
-      expect(authController.isAuthenticated, isTrue);
-      expect(authController.currentUser?.name, 'Suresh Patil');
+      expect(authController.errorMessage, 'authErrorInvalidCode');
     });
 
-    test('Scenario C: Existing user session restored on initialize', () async {
-      final user = await authService.createAccountWithPassword(
-        name: 'Vijay Kumar',
+    test('a failed send reports a send error, not a success', () async {
+      fakeFirebase = _FakeFirebaseAuth(failSend: true);
+      fakeCollectorAuth = _FakeCollectorAuth(sessionStore);
+      authController = buildController();
+
+      final sent = await authController.sendOtp('9876543210');
+
+      expect(sent, isFalse);
+      expect(authController.errorMessage, 'authErrorSendFailed');
+    });
+
+    test('a number that is not an Indian mobile is rejected before Firebase',
+        () async {
+      final sent = await authController.sendOtp('12345');
+
+      expect(sent, isFalse);
+      expect(fakeFirebase.sendCount, 0);
+      expect(authController.errorMessage, 'invalidPhoneLength');
+    });
+
+    test('verify without a pending code reports an expired session', () async {
+      final result = await authController.verifyOtp('123456');
+
+      expect(result.success, isFalse);
+      expect(authController.errorMessage, 'authErrorSessionExpired');
+    });
+  });
+
+  group('Offline session', () {
+    test('a stored session restores without the network', () async {
+      final user = await authService.completeUserProfile(
         phoneNumber: '9876543210',
-        password: 'password123',
+        name: 'Vijay Kumar',
         city: 'Nagpur',
+        backendUserId: 'backend-user-1',
       );
       await dbService.setCurrentUserId(user.id);
 
-      // Create new fresh controller instance
-      final freshController = AuthController(authService: authService);
-      await freshController.initialize();
+      // Fresh controller, as on a cold start with no signal.
+      final fresh = buildController();
+      await fresh.initialize();
 
-      expect(freshController.isAuthenticated, isTrue);
-      expect(freshController.currentUser?.name, 'Vijay Kumar');
+      expect(fresh.isAuthenticated, isTrue);
+      expect(fresh.currentUser?.name, 'Vijay Kumar');
     });
 
-    test('Scenario D: Logout clears SQLite session state', () async {
-      final user = await authService.createAccountWithPassword(
-        name: 'Santosh Kumar',
+    test('logout clears the local session and profile cache', () async {
+      final user = await authService.completeUserProfile(
         phoneNumber: '9876543210',
-        password: 'password123',
+        name: 'Santosh Kumar',
         city: 'Nagpur',
+        backendUserId: 'backend-user-1',
       );
       authController.setCurrentUser(user);
+      await sessionStore.write(
+        const CollectorSession(
+          userId: 'backend-user-1',
+          accessToken: 'a',
+          refreshToken: 'r',
+          role: 'COLLECTOR',
+        ),
+      );
+
       expect(authController.isAuthenticated, isTrue);
 
       await authController.logout();
+
       expect(authController.currentUser, isNull);
       expect(authController.isAuthenticated, isFalse);
-
-      final currentDbUser = await dbService.getCurrentUser();
-      expect(currentDbUser, isNull);
-    });
-
-    test('Scenario E: Existing number during Sign Up detected', () async {
-      await authService.createAccountWithPassword(
-        name: 'Existing Collector',
-        phoneNumber: '9876543210',
-        password: 'password123',
-        city: 'Mumbai',
-      );
-
-      final exists = await authService.checkUserExists('9876543210');
-      expect(exists, isTrue);
-
-      final nonExistent = await authService.checkUserExists('9123456780');
-      expect(nonExistent, isFalse);
+      expect(await dbService.getCurrentUser(), isNull);
+      expect(await sessionStore.hasSession(), isFalse);
     });
   });
 
   group('AuthLandingScreen Widget Tests', () {
-    testWidgets('Renders Namaste, Welcome, LOGIN, and CREATE ACCOUNT choices', (tester) async {
+    testWidgets('Renders welcome copy and both choices', (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -270,7 +384,6 @@ void main() {
 
       expect(find.text('Namaste 👋'), findsOneWidget);
       expect(find.text('Welcome to Kabadiwala Connect'), findsOneWidget);
-      expect(find.text('Sell, track and manage your scrap easily.'), findsOneWidget);
       expect(find.byKey(const Key('landing_login_btn')), findsOneWidget);
       expect(find.byKey(const Key('landing_signup_btn')), findsOneWidget);
     });
@@ -287,8 +400,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Welcome back 👋'), findsOneWidget);
-      expect(find.text('Login to continue to Kabadiwala Connect'), findsOneWidget);
-      expect(find.byKey(const Key('login_submit_btn')), findsOneWidget);
+      expect(find.byKey(const Key('login_send_code_btn')), findsOneWidget);
     });
 
     testWidgets('Tapping CREATE ACCOUNT opens SignUpScreen', (tester) async {
@@ -303,105 +415,94 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Create your account 👋'), findsOneWidget);
-      expect(find.text('Join Kabadiwala Connect'), findsOneWidget);
       expect(find.byKey(const Key('signup_submit_btn')), findsOneWidget);
     });
   });
 
   group('LoginScreen Widget Tests', () {
-    testWidgets('Renders Mobile, Password, Show/Hide toggle, and no OTP', (tester) async {
+    testWidgets('Shows phone only, with no password field', (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget(LoginScreen(authController: authController)));
+      await tester.pumpWidget(
+        createTestWidget(LoginScreen(authController: authController)),
+      );
       await tester.pump();
 
       expect(find.text('Welcome back 👋'), findsOneWidget);
       expect(find.text('Mobile Number'), findsOneWidget);
-      expect(find.text('Password'), findsOneWidget);
       expect(find.byKey(const Key('login_phone_field')), findsOneWidget);
-      expect(find.byKey(const Key('login_password_field')), findsOneWidget);
-      expect(find.byKey(const Key('login_toggle_password_btn')), findsOneWidget);
-      expect(find.byKey(const Key('login_submit_btn')), findsOneWidget);
-      expect(find.text('Get OTP'), findsNothing); // NO OTP ON LOGIN SCREEN
+      expect(find.byKey(const Key('login_send_code_btn')), findsOneWidget);
+      expect(find.byKey(const Key('login_password_field')), findsNothing);
+      expect(find.text('Password'), findsNothing);
     });
 
-    testWidgets('Shows error on invalid mobile or empty password', (tester) async {
+    testWidgets('Rejects an invalid mobile before contacting Firebase',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget(LoginScreen(authController: authController)));
+      await tester.pumpWidget(
+        createTestWidget(LoginScreen(authController: authController)),
+      );
       await tester.pump();
 
-      // Enter invalid phone
       await tester.enterText(find.byKey(const Key('login_phone_field')), '1234');
-      await tester.tap(find.byKey(const Key('login_submit_btn')));
+      await tester.tap(find.byKey(const Key('login_send_code_btn')));
       await tester.pump();
 
-      expect(find.text('Please enter a valid 10-digit mobile number'), findsOneWidget);
-
-      // Enter valid phone but empty password
-      await tester.enterText(find.byKey(const Key('login_phone_field')), '9876543210');
-      await tester.tap(find.byKey(const Key('login_submit_btn')));
-      await tester.pump();
-
-      expect(find.text('Enter password'), findsNWidgets(2));
+      expect(
+        find.text('Please enter a valid 10-digit mobile number'),
+        findsOneWidget,
+      );
+      expect(fakeFirebase.sendCount, 0);
     });
   });
 
   group('SignUpScreen Widget Tests', () {
-    testWidgets('Renders all registration fields, city chips, and role cards', (tester) async {
+    testWidgets('Shows name, mobile, city and role, but no password',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget(SignUpScreen(authController: authController)));
+      await tester.pumpWidget(
+        createTestWidget(SignUpScreen(authController: authController)),
+      );
       await tester.pump();
 
       expect(find.text('Create your account 👋'), findsOneWidget);
       expect(find.byKey(const Key('signup_name_field')), findsOneWidget);
       expect(find.byKey(const Key('signup_phone_field')), findsOneWidget);
-      expect(find.byKey(const Key('signup_password_field')), findsOneWidget);
-      expect(find.byKey(const Key('signup_confirm_password_field')), findsOneWidget);
       expect(find.byKey(const Key('signup_city_field')), findsOneWidget);
-      expect(find.text('Scrap Collector'), findsOneWidget);
-      expect(find.text('Recycler'), findsOneWidget);
       expect(find.byKey(const Key('signup_submit_btn')), findsOneWidget);
+      expect(find.byKey(const Key('signup_password_field')), findsNothing);
+      expect(find.byKey(const Key('signup_confirm_password_field')), findsNothing);
     });
 
-    testWidgets('Validates password match and length on Sign Up', (tester) async {
+    testWidgets('Requires a name before proceeding', (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget(SignUpScreen(authController: authController)));
+      await tester.pumpWidget(
+        createTestWidget(SignUpScreen(authController: authController)),
+      );
       await tester.pump();
-
-      await tester.enterText(find.byKey(const Key('signup_name_field')), 'Ramesh Shinde');
-      await tester.enterText(find.byKey(const Key('signup_phone_field')), '9876543210');
-      await tester.enterText(find.byKey(const Key('signup_password_field')), '123'); // short
-      await tester.enterText(find.byKey(const Key('signup_confirm_password_field')), '123');
-      await tester.enterText(find.byKey(const Key('signup_city_field')), 'Pune');
 
       await tester.tap(find.byKey(const Key('signup_submit_btn')));
       await tester.pump();
 
-      expect(find.text('Password must be at least 6 characters.'), findsOneWidget);
-
-      // Mismatched passwords
-      await tester.enterText(find.byKey(const Key('signup_password_field')), 'password123');
-      await tester.enterText(find.byKey(const Key('signup_confirm_password_field')), 'differentPass');
-      await tester.tap(find.byKey(const Key('signup_submit_btn')));
-      await tester.pump();
-
-      expect(find.text('Passwords do not match.'), findsOneWidget);
+      expect(find.byKey(const Key('signup_name_field')), findsOneWidget);
+      expect(fakeFirebase.sendCount, 0);
     });
   });
 
   group('KabadiwalaConnectApp Root Auth Gate Tests', () {
-    testWidgets('Fresh install / unauthenticated user lands directly on AuthLandingScreen', (tester) async {
+    testWidgets('Unauthenticated user lands on AuthLandingScreen',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -416,14 +517,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Should be on Auth Landing screen with Namaste & Welcome choices
       expect(find.text('Namaste 👋'), findsOneWidget);
-      expect(find.text('Welcome to Kabadiwala Connect'), findsOneWidget);
       expect(find.byKey(const Key('landing_login_btn')), findsOneWidget);
       expect(find.byKey(const Key('landing_signup_btn')), findsOneWidget);
     });
 
-    testWidgets('Authenticated existing user lands directly on HomeScreen', (tester) async {
+    testWidgets('Authenticated user lands on HomeScreen', (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -455,7 +554,6 @@ void main() {
       ));
       await tester.pump();
 
-      // Should be on Home screen
       expect(find.text('Kabadiwala Connect'), findsOneWidget);
       expect(find.text('Namaste 👋'), findsNothing);
     });

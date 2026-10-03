@@ -80,6 +80,19 @@ class RateLimitError extends AppError {
 }
 
 /*
+| A server-side capability is missing, e.g. Firebase is not configured.
+|
+| Deliberately 503, not 401: the caller's credential may be perfectly valid.
+| Answering 401 would tell the client to re-authenticate a credential that was
+| never the problem, and would make an operator mistake look like a user error.
+*/
+class ServiceUnavailableError extends AppError {
+  constructor(message = "Service unavailable", code = "SERVICE_UNAVAILABLE", details) {
+    super(message, { status: 503, code, details });
+  }
+}
+
+/*
 |--------------------------------------------------------------------------
 | UPSTREAM ERRORS
 |--------------------------------------------------------------------------
@@ -111,6 +124,7 @@ module.exports = {
   UnprocessableError,
   PayloadTooLargeError,
   RateLimitError,
+  ServiceUnavailableError,
   UpstreamTimeoutError,
   UpstreamUnavailableError,
 };

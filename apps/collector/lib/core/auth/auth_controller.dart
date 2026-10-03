@@ -7,7 +7,6 @@ import '../../core/constants/app_constants.dart';
 import '../../models/user_profile.dart';
 import '../../services/auth_service.dart';
 import '../../services/collector_auth_service.dart';
-import '../../services/database_service.dart';
 import '../../services/firebase_auth_service.dart';
 
 /// Central reactive controller for authentication.
@@ -354,25 +353,6 @@ class AuthController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  /// Sign in an existing collector.
-  ///
-  /// Same flow as sign-up: the backend links the number to the existing
-  /// account, or returns that account. There is no separate "login" mode for
-  /// phone auth — that is what makes the phone number the single identity.
-  Future<AuthVerificationResult> login({
-    String? phoneNumber,
-    String? phone,
-  }) async {
-    _pendingSignUpName = null;
-    _pendingSignUpCity = null;
-    _pendingSignUpRole = null;
-    _pendingSignUpPhotoPath = null;
-
-    notifyListeners();
-
-    return verifyOtp('', phoneNumber: phoneNumber ?? phone);
   }
 
   /// Finish a partially completed profile.

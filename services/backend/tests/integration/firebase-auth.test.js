@@ -253,10 +253,11 @@ describeIntegration("firebase phone auth", () => {
     it("reports a configuration fault as FIREBASE_NOT_CONFIGURED, not a bad token", async () => {
       // The real verifier throws this when FIREBASE_PROJECT_ID is unset, so
       // that a misconfigured server is not mistaken for a rejected credential.
-      const { AuthenticationError } = require("../../src/lib/errors");
+      // It is a 503: the caller's token may be perfectly valid.
+      const { ServiceUnavailableError } = require("../../src/lib/errors");
 
       firebase.verifyIdToken.mockRejectedValue(
-        new AuthenticationError(
+        new ServiceUnavailableError(
           "Phone sign-in is not configured on this server.",
           "FIREBASE_NOT_CONFIGURED"
         )
@@ -264,7 +265,10 @@ describeIntegration("firebase phone auth", () => {
 
       await expect(
         firebaseAuthService.signInWithIdToken("token")
-      ).rejects.toMatchObject({ code: "FIREBASE_NOT_CONFIGURED" });
+      ).rejects.toMatchObject({
+        code: "FIREBASE_NOT_CONFIGURED",
+        status: 503,
+      });
     });
   });
 
