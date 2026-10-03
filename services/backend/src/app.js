@@ -14,6 +14,9 @@
 |   /api/materials/*                 material catalogue
 |   /api/rates/*  /api/prices/*      rate card (prices is the collector alias)
 |   /api/lots/*                      lots, offline sync, AI analyses
+|   /api/recyclers/*                 recycler directory (collector matching)
+|   /api/handovers/*                 handover create / confirm
+|   /api/transactions/*              earnings / settlement ledger
 |   /api/traceability/*              traceability timeline
 |   /api/notifications/*             collector notifications
 |   /api/price-alerts/*              collector price alerts
@@ -42,6 +45,9 @@ const authRoutes = require("./modules/auth/auth.routes");
 const materialsRoutes = require("./modules/materials/materials.routes");
 const ratesRoutes = require("./modules/rates/rates.routes");
 const lotsRoutes = require("./modules/lots/lots.routes");
+const recyclersRoutes = require("./modules/recyclers/recyclers.routes");
+const handoversRoutes = require("./modules/handovers/handovers.routes");
+const transactionsRoutes = require("./modules/transactions/transactions.routes");
 const traceabilityRoutes = require("./modules/traceability/traceability.routes");
 const notificationsRoutes = require("./modules/notifications/notifications.routes");
 const priceAlertsRoutes = require("./modules/price-alerts/price-alerts.routes");
@@ -87,6 +93,9 @@ app.get("/", (req, res) => {
         rates: "/api/rates",
         prices: "/api/prices",
         lots: "/api/lots",
+        recyclers: "/api/recyclers",
+        handovers: "/api/handovers",
+        transactions: "/api/transactions",
         traceability: "/api/traceability",
         notifications: "/api/notifications",
         priceAlerts: "/api/price-alerts",
@@ -130,6 +139,9 @@ app.use("/api/materials", requireDatabase, materialsRoutes);
 app.use("/api/rates", requireDatabase, ratesRoutes);
 app.use("/api/prices", requireDatabase, ratesRoutes);
 app.use("/api/lots", requireDatabase, lotsRoutes);
+app.use("/api/recyclers", requireDatabase, recyclersRoutes);
+app.use("/api/handovers", requireDatabase, handoversRoutes);
+app.use("/api/transactions", requireDatabase, transactionsRoutes);
 app.use("/api/traceability", requireDatabase, traceabilityRoutes);
 app.use("/api/notifications", requireDatabase, notificationsRoutes);
 app.use("/api/price-alerts", requireDatabase, priceAlertsRoutes);

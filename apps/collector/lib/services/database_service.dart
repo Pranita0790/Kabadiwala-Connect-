@@ -487,6 +487,22 @@ class DatabaseService {
     }
   }
 
+  /// Removes specific transaction rows (used to clear old mock demo earnings).
+  Future<void> deleteTransactionsByIds(List<String> ids) async {
+    if (ids.isEmpty) return;
+    try {
+      final db = await database;
+      final placeholders = List.filled(ids.length, '?').join(',');
+      await db.delete(
+        AppConstants.tableTransactions,
+        where: 'id IN ($placeholders)',
+        whereArgs: ids,
+      );
+    } catch (e) {
+      throw DatabaseException('Failed to delete transactions', e);
+    }
+  }
+
   // Alias for backward compatibility
   Future<List<Transaction>> getAllTransactions() => getTransactions();
 

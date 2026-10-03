@@ -28,7 +28,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
 
-  String _selectedRole = 'collector'; // 'collector' or 'recycler'
   String? _photoPath;
   String? _nameError;
   String? _cityError;
@@ -51,7 +50,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     if (_authController.currentUser != null) {
       _nameController.text = _authController.currentUser!.name;
       _cityController.text = _authController.currentUser!.city;
-      _selectedRole = _authController.currentUser!.role;
       _photoPath = _authController.currentUser!.photoPath;
     }
   }
@@ -167,7 +165,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       await _authController.completeProfile(
         name: name,
         city: city,
-        role: _selectedRole,
+        role: 'collector',
         photoPath: _photoPath,
       );
 
@@ -469,127 +467,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
 
-              // Role Selection (Scrap Collector vs Recycler)
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.work_outline_rounded, color: AppColors.primary, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            loc.translate('whatDoYouDo'),
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Scrap Collector Card
-                      InkWell(
-                        onTap: () => setState(() => _selectedRole = 'collector'),
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: _selectedRole == 'collector'
-                                ? AppColors.primary.withValues(alpha: 0.1)
-                                : AppColors.background,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: _selectedRole == 'collector' ? AppColors.primary : Colors.black12,
-                              width: _selectedRole == 'collector' ? 2 : 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Text('🛒', style: TextStyle(fontSize: 28)),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      loc.translate('scrapCollector'),
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      loc.translate('scrapCollectorDesc'),
-                                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                _selectedRole == 'collector'
-                                    ? Icons.radio_button_checked_rounded
-                                    : Icons.radio_button_off_rounded,
-                                color: _selectedRole == 'collector' ? AppColors.primary : Colors.grey,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Recycler Card
-                      InkWell(
-                        onTap: () => setState(() => _selectedRole = 'recycler'),
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: _selectedRole == 'recycler'
-                                ? AppColors.secondary.withValues(alpha: 0.1)
-                                : AppColors.background,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: _selectedRole == 'recycler' ? AppColors.secondary : Colors.black12,
-                              width: _selectedRole == 'recycler' ? 2 : 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Text('♻️', style: TextStyle(fontSize: 28)),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      loc.translate('recyclerRole'),
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      loc.translate('recyclerRoleDesc'),
-                                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                _selectedRole == 'recycler'
-                                    ? Icons.radio_button_checked_rounded
-                                    : Icons.radio_button_off_rounded,
-                                color: _selectedRole == 'recycler' ? AppColors.secondary : Colors.grey,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
 
               const SizedBox(height: 28),
 

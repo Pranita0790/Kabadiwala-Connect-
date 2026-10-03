@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/user_profile.dart';
+import 'api_service.dart';
 import 'database_service.dart';
+import 'session_store.dart';
 
 class AuthVerificationResult {
   final bool success;
@@ -23,14 +25,21 @@ class AuthVerificationResult {
 class AuthService {
   static AuthService? _instance;
   final DatabaseService _dbService;
+  final RemoteApiService _api;
+  final SessionStore _sessionStore;
 
   // In-memory OTP storage for current sign up session
   String? _lastGeneratedOtp;
   String? _lastPhoneSent;
   DateTime? _lastOtpSentTime;
 
-  AuthService({DatabaseService? dbService})
-      : _dbService = dbService ?? DatabaseService.instance;
+  AuthService({
+    DatabaseService? dbService,
+    RemoteApiService? apiService,
+    SessionStore? sessionStore,
+  })  : _dbService = dbService ?? DatabaseService.instance,
+        _api = apiService ?? RemoteApiService.instance,
+        _sessionStore = sessionStore ?? SessionStore();
 
   static AuthService get instance {
     _instance ??= AuthService();
@@ -98,22 +107,74 @@ class AuthService {
     return user != null && user.isProfileComplete;
   }
 
+  /// Restores a previously saved backend JWT onto [RemoteApiService].
+  Future<void> restoreBackendSession() async {
+    final token = await _sessionStore.getAccessToken();
+    if (token != null && token.isNotEmpty) {
+      _api.setAuthToken(token);
+    }
+  }
+
   /// Logs in an existing user with mobile number and password (NO OTP)
   Future<AuthVerificationResult> loginWithPassword({
     required String rawPhone,
     required String password,
   }) async {
     final cleanPhone = normalizePhoneNumber(rawPhone);
-    final user = await _dbService.getUserByPhone(cleanPhone);
 
-    if (user == null) {
-      return const AuthVerificationResult(
-        success: false,
-        errorMessage: 'invalidCredentialsError',
+    // Prefer the platform backend so lots/handovers sync to the recycler dashboard.
+    final remote = await _api.loginWithPassword(
+      identifier: cleanPhone,
+      password: password,
+    );
+
+    if (remote.success && remote.data != null) {
+      final data = remote.data!;
+      final access = data['accessToken'] as String? ?? '';
+      final refresh = data['refreshToken'] as String?;
+      final remoteUser = data['user'] as Map<String, dynamic>?;
+      final backendUserId = remoteUser?['id']?.toString();
+
+      await _sessionStore.save(
+        accessToken: access,
+        refreshToken: refresh,
+        userId: backendUserId,
+      );
+      _api.setAuthToken(access);
+
+      final local = await _dbService.getUserByPhone(cleanPhone);
+      final profile = UserProfile.create(
+        id: local?.id,
+        name: (remoteUser?['fullName'] as String?)?.trim().isNotEmpty == true
+            ? remoteUser!['fullName'] as String
+            : (local?.name ?? 'Collector'),
+        phoneNumber: cleanPhone,
+        passwordHash: hashPassword(password),
+        city: local?.city ?? '',
+        role: 'collector',
+        photoPath: local?.photoPath,
+        isProfileComplete: true,
+      );
+      await _dbService.saveUser(profile);
+      await _dbService.setCurrentUserId(profile.id);
+
+      return AuthVerificationResult(
+        success: true,
+        isNewUser: false,
+        user: profile,
       );
     }
 
-    // Verify password if hash exists on user profile
+    // Offline / backend-down fallback: local SQLite password check only.
+    final user = await _dbService.getUserByPhone(cleanPhone);
+
+    if (user == null) {
+      return AuthVerificationResult(
+        success: false,
+        errorMessage: remote.errorMessage ?? 'invalidCredentialsError',
+      );
+    }
+
     if (user.passwordHash != null && user.passwordHash!.isNotEmpty) {
       final expectedHash = hashPassword(password);
       if (user.passwordHash != expectedHash) {
@@ -124,7 +185,6 @@ class AuthService {
       }
     }
 
-    // Password valid -> persist session
     await _dbService.setCurrentUserId(user.id);
 
     return AuthVerificationResult(
@@ -217,6 +277,31 @@ class AuthService {
 
     await _dbService.saveUser(user);
     await _dbService.setCurrentUserId(user.id);
+
+    // Mirror the account onto the backend so later password login can sync lots.
+    if (password.trim().length >= 8) {
+      final registered = await _api.registerCollector(
+        fullName: name.trim(),
+        phone: cleanPhone,
+        password: password,
+      );
+      if (registered.success) {
+        final login = await _api.loginWithPassword(
+          identifier: cleanPhone,
+          password: password,
+        );
+        if (login.success && login.data != null) {
+          final data = login.data!;
+          await _sessionStore.save(
+            accessToken: data['accessToken'] as String? ?? '',
+            refreshToken: data['refreshToken'] as String?,
+            userId: (data['user'] as Map?)?['id']?.toString(),
+          );
+          _api.setAuthToken(data['accessToken'] as String?);
+        }
+      }
+    }
+
     return user;
   }
 
@@ -256,6 +341,16 @@ class AuthService {
     return updatedUser;
   }
 
+  /// Looks up a profile already saved on this device by phone number.
+  ///
+  /// Used when the backend returns a session but no local details: whatever the
+  /// collector already told us about themselves is reused rather than making
+  /// them type it again.
+  Future<UserProfile?> findByPhone(String phoneNumber) async {
+    final cleanPhone = normalizePhoneNumber(phoneNumber);
+    return _dbService.getUserByPhone(cleanPhone);
+  }
+
   /// Fetches currently authenticated user
   Future<UserProfile?> getCurrentUser() async {
     return await _dbService.getCurrentUser();
@@ -263,6 +358,8 @@ class AuthService {
 
   /// Logs out the user and clears session
   Future<void> logout() async {
+    await _sessionStore.clear();
+    _api.setAuthToken(null);
     await _dbService.clearAuthSession();
     _lastGeneratedOtp = null;
     _lastPhoneSent = null;

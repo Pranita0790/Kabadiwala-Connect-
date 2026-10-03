@@ -46,6 +46,15 @@ class TransactionLedgerData {
 }
 
 class TransactionRepository {
+  /// Demo IDs previously cached from [MockApiService] (paid total ₹10,200).
+  /// Cleared once per fetch so the live app does not keep showing fake earnings.
+  static const List<String> _staleDemoTransactionIds = [
+    'tx_101',
+    'tx_102',
+    'tx_103',
+    'tx_104',
+  ];
+
   final DatabaseService _dbService;
   final ApiService _apiService;
   final ConnectivityService _connectivityService;
@@ -55,7 +64,7 @@ class TransactionRepository {
     ApiService? apiService,
     ConnectivityService? connectivityService,
   })  : _dbService = dbService ?? DatabaseService(),
-        _apiService = apiService ?? RemoteApiService(),
+        _apiService = apiService ?? RemoteApiService.instance,
         _connectivityService = connectivityService ?? ConnectivityService();
 
   /// Fetches collector earnings and transaction history:
@@ -63,6 +72,14 @@ class TransactionRepository {
   /// - Online: Fetches latest completed transactions from API and caches locally in SQLite.
   /// - Offline: Reads cached transactions from SQLite without failing or depending on network.
   Future<TransactionLedgerData> fetchTransactions({bool forceRefresh = false}) async {
+    // Live app only: clear mock rows previously written by RemoteApiService fallback.
+    // Tests that inject MockApiService keep their demo fixtures.
+    if (_apiService is RemoteApiService) {
+      try {
+        await _dbService.deleteTransactionsByIds(_staleDemoTransactionIds);
+      } catch (_) {}
+    }
+
     final isConnected = await _connectivityService.isConnected();
 
     if (isConnected) {

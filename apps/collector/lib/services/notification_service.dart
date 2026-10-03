@@ -24,7 +24,7 @@ class NotificationService {
     DatabaseService? dbService,
     ApiService? apiService,
   })  : _dbService = dbService ?? DatabaseService.instance,
-        _apiService = apiService ?? RemoteApiService(),
+        _apiService = apiService ?? RemoteApiService.instance,
         _uuid = const Uuid() {
     _instance = this;
   }

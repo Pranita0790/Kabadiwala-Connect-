@@ -297,6 +297,9 @@ class AppLocalizations {
       'authErrorTooManyAttempts': 'Too many attempts. Please wait and try again.',
       'signUpOtpSubtitle': 'Enter the OTP sent to your mobile number to complete your registration.',
       'verifyMobileNumber': 'Verify your mobile number',
+      'passwordRequiredError': 'Please enter your password',
+      'authErrorPasswordRequired':
+          'This account has no password. Sign in with your mobile code instead.',
     },
     'hi': {
       'appTitle': 'कबाड़ीवाला कनेक्ट',
@@ -584,6 +587,9 @@ class AppLocalizations {
       'authErrorTooManyAttempts': 'बहुत अधिक प्रयास। कृपया थोड़ी देर बाद प्रयास करें।',
       'signUpOtpSubtitle': 'अपना पंजीकरण पूरा करने के लिए अपने मोबाइल नंबर पर भेजा गया ओटीपी दर्ज करें।',
       'verifyMobileNumber': 'अपना मोबाइल नंबर सत्यापित करें',
+      'passwordRequiredError': 'कृपया अपना पासवर्ड दर्ज करें',
+      'authErrorPasswordRequired':
+          'इस खाते का कोई पासवर्ड नहीं है। मोबाइल कोड से साइन इन करें।',
     },
     'mr': {
       'appTitle': 'कबाडीवाला कनेक्ट',
@@ -871,6 +877,9 @@ class AppLocalizations {
       'authErrorTooManyAttempts': 'खूप प्रयत्न. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.',
       'signUpOtpSubtitle': 'तुमची नोंदणी पूर्ण करण्यासाठी तुमच्या मोबाइल नंबरवर पाठवलेला OTP प्रविष्ट करा.',
       'verifyMobileNumber': 'तुमचा मोबाइल नंबर पडताळा',
+      'passwordRequiredError': 'कृपया तुमचा पासवर्ड प्रविष्ट करा',
+      'authErrorPasswordRequired':
+          'या खात्याला पासवर्ड नाही. मोबाइल कोडने साइन इन करा.',
     },
   };
 

@@ -128,7 +128,7 @@ import {
        COMPLETE HANDOVER
     ========================== */
   
-    const handleCompleteHandover = () => {
+    const handleCompleteHandover = async () => {
       setError("");
   
       const measuredWeight =
@@ -170,14 +170,20 @@ import {
         return;
       }
   
-      const updatedLots = updateLotStatus(
-        lot.id,
-        "Completed"
-      );
-  
-      setLots(updatedLots);
-  
-      setCompleted(true);
+      try {
+        const updatedLots = await updateLotStatus(
+          lot.id,
+          "Completed"
+        );
+        setLots(updatedLots);
+        setCompleted(true);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not complete handover on the server."
+        );
+      }
     };
   
     /* =========================

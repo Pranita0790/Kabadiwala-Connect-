@@ -7,6 +7,8 @@ export type LotStatus =
 
 export interface Lot {
   id: string;
+  /** Backend public UUID — used for PATCH /lots/:id/status when present. */
+  publicId?: string;
   material: string;
   collector: string;
   location: string;

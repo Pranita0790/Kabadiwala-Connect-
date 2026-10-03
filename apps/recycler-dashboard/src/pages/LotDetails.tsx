@@ -108,16 +108,22 @@ function LotDetails() {
      UPDATE STATUS
   ========================== */
 
-  const handleStatusUpdate = (
+  const handleStatusUpdate = async (
     newStatus: LotStatus
   ) => {
-    const updatedLots =
-      updateStoredLotStatus(
+    try {
+      const updatedLots = await updateStoredLotStatus(
         lot.id,
         newStatus
       );
-
-    setLots(updatedLots);
+      setLots(updatedLots);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Could not update lot on the server."
+      );
+    }
   };
 
   /* =========================
@@ -125,7 +131,7 @@ function LotDetails() {
   ========================== */
 
   const handleAccept = () => {
-    handleStatusUpdate("Accepted");
+    void handleStatusUpdate("Accepted");
   };
 
   /* =========================
@@ -141,7 +147,7 @@ function LotDetails() {
       return;
     }
 
-    handleStatusUpdate("Rejected");
+    void handleStatusUpdate("Rejected");
   };
 
   /* =========================
@@ -149,7 +155,7 @@ function LotDetails() {
   ========================== */
 
   const handleStartHandover = () => {
-    handleStatusUpdate("Handover");
+    void handleStatusUpdate("Handover");
   };
 
   /* =========================

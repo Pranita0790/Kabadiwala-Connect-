@@ -39,7 +39,8 @@ class AuthController extends ChangeNotifier {
   }
 
   UserProfile? get currentUser => _currentUser;
-  bool get isAuthenticated => _currentUser != null && _currentUser!.isProfileComplete;
+  bool get isAuthenticated =>
+      _currentUser != null && _currentUser!.isProfileComplete;
   bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
   String? get pendingPhoneNumber => _pendingPhoneNumber;
@@ -67,6 +68,7 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _authService.restoreBackendSession();
       _currentUser = await _authService.getCurrentUser();
     } catch (e) {
       debugPrint('Error initializing AuthController: $e');
@@ -119,6 +121,47 @@ class AuthController extends ChangeNotifier {
         success: false,
         errorMessage: 'invalidCredentialsError',
       );
+    }
+  }
+
+  /// Public method to instantly sign in as a demo user or custom profile.
+  /// Works without SMS OTP — ideal for testing post-login screens and backend.
+  Future<bool> signInAsDemoUser({
+    String? name,
+    String? phone,
+    String? city,
+    String? role,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final userPhone = (phone != null && phone.trim().isNotEmpty)
+          ? phone.trim()
+          : '9876543210';
+      final userName = (name != null && name.trim().isNotEmpty)
+          ? name.trim()
+          : 'Ramesh Shinde';
+      final userCity = (city != null && city.trim().isNotEmpty)
+          ? city.trim()
+          : 'Pune';
+      final userRole = role ?? 'collector';
+
+      _currentUser = await _authService.completeUserProfile(
+        phoneNumber: userPhone,
+        name: userName,
+        city: userCity,
+        role: userRole,
+      );
+
+      return true;
+    } catch (error) {
+      _errorMessage = 'authErrorUnknown';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -200,8 +243,10 @@ class AuthController extends ChangeNotifier {
   }
 
   /// Verify entered OTP during Sign Up
-  Future<AuthVerificationResult> verifyOtp(String otp, {String? phoneNumber}) async {
-    final phone = phoneNumber ?? _pendingPhoneNumber ?? _currentUser?.phoneNumber ?? '';
+  Future<AuthVerificationResult> verifyOtp(String otp,
+      {String? phoneNumber}) async {
+    final phone =
+        phoneNumber ?? _pendingPhoneNumber ?? _currentUser?.phoneNumber ?? '';
     if (phone.isEmpty) {
       return const AuthVerificationResult(
         success: false,

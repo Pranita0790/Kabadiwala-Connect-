@@ -56,23 +56,39 @@ class Transaction {
   }
 
   factory Transaction.fromMap(Map<String, dynamic> map) {
-    final finalP = ((map['final_price'] ?? map['final_amount_paid'] ?? 0.0) as num).toDouble();
-    final quotedP = ((map['quoted_price'] ?? finalP) as num).toDouble();
-    final created = map['created_at'] != null
-        ? DateTime.parse(map['created_at'] as String)
-        : (map['transaction_date'] != null ? DateTime.parse(map['transaction_date'] as String) : DateTime.now());
+    final finalP = ((map['final_price'] ??
+            map['finalPrice'] ??
+            map['final_amount_paid'] ??
+            0.0) as num)
+        .toDouble();
+    final quotedP =
+        ((map['quoted_price'] ?? map['quotedPrice'] ?? finalP) as num)
+            .toDouble();
+    final createdRaw =
+        map['created_at'] ?? map['createdAt'] ?? map['transaction_date'];
+    final created = createdRaw != null
+        ? DateTime.parse(createdRaw.toString())
+        : DateTime.now();
 
     return Transaction(
-      id: map['id'] as String,
-      lotId: map['lot_id'] as String,
-      recyclerId: (map['recycler_id'] ?? map['recycler_name']) as String?,
+      id: (map['id'] ?? map['publicId']).toString(),
+      lotId: (map['lot_id'] ?? map['lotId'] ?? '').toString(),
+      recyclerId:
+          (map['recycler_id'] ?? map['recyclerId'] ?? map['recycler_name'] ?? map['recyclerName'])
+              ?.toString(),
       quotedPrice: quotedP,
       finalPrice: finalP,
-      paymentStatus: (map['payment_status'] as String?) ?? 'PENDING',
-      handoverStatus: (map['handover_status'] as String?) ?? 'COMPLETED',
+      paymentStatus:
+          (map['payment_status'] ?? map['paymentStatus'] ?? 'PENDING')
+              .toString(),
+      handoverStatus:
+          (map['handover_status'] ?? map['handoverStatus'] ?? 'COMPLETED')
+              .toString(),
       createdAt: created,
-      categoryName: map['category_name'] as String?,
-      weightKg: ((map['weight_kg'] ?? 0.0) as num).toDouble(),
+      categoryName:
+          (map['category_name'] ?? map['categoryName']) as String?,
+      weightKg:
+          ((map['weight_kg'] ?? map['weightKg'] ?? 0.0) as num).toDouble(),
     );
   }
 }

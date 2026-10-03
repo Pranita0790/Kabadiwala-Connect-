@@ -99,6 +99,8 @@ router.get(
         criticalOnly: query.criticalOnly === "true",
         search: query.search,
         since: query.since,
+        limit: pagination.limit,
+        offset: pagination.offset,
       },
       req.user
     );

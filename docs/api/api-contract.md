@@ -58,9 +58,10 @@ is only used to prove a phone number; it does not replace the platform session.
 - **Roles** — `COLLECTOR`, `RECYCLER`, `ADMIN`. Authorization is enforced on the
   backend; the client never chooses its own role.
 
-### Collector sign-in (Firebase Phone Auth)
+### Collector sign-in
 
-Collectors have **no password**. Sign-in is a three-step flow:
+A collector created through the phone flow has **no password**. Sign-in for that
+account is a three-step flow:
 
 1. The device asks Firebase to send an SMS to the phone number.
 2. The device gives the 6-digit code to Firebase; Firebase validates it.
@@ -81,6 +82,14 @@ Collector App ──(phone)──▶ Firebase
                                 └─ issue access + refresh token
              ◀──(session)────
 ```
+
+The collector app's **sign-in screen asks for a mobile number and a password**
+and posts them to `/api/auth/login`; it no longer offers an SMS-code step. That
+only works for an account that has a password — one created by
+`POST /api/auth/register`, or whose password was set through
+`POST /api/auth/change-password`. An account that has only ever used the phone
+flow is refused with `FIREBASE_SIGN_IN_REQUIRED`. Sign-up on the device still
+uses the Firebase flow above, so a new collector has no password to forget.
 
 ### `POST /api/auth/firebase/sign-in` — public
 
@@ -261,7 +270,7 @@ All lot endpoints require a bearer token (`requireAuth`).
 | `GET`   | `/api/lots`               | any authenticated | `{ success, lots[], count, meta }` + `data`.|
 | `GET`   | `/api/lots/:id`           | any authenticated | `{ success, lot }` + `data`.                |
 | `PATCH` | `/api/lots/:id`           | COLLECTOR, ADMIN| Optimistic concurrency via `version`.        |
-| `PATCH` | `/api/lots/:id/status`    | COLLECTOR, ADMIN| Canonical status transition.                 |
+| `PATCH` | `/api/lots/:id/status`    | RECYCLER, ADMIN (collector may withdraw to Rejected) | Canonical status transition; Accept claims the lot. |
 | `DELETE`| `/api/lots/:id`           | COLLECTOR, ADMIN| Soft delete.                                 |
 | `GET`   | `/api/lots/:id/analyses`  | any authenticated | AI analyses attached to the lot.            |
 | `POST`  | `/api/lots/:id/analysis`  | COLLECTOR, ADMIN| Attach an AI analysis result.               |
@@ -289,7 +298,24 @@ label), and `createdAt`.
 
 ---
 
-## 10. Notifications and price alerts
+## 10. Recyclers, handovers, and transactions
+
+These endpoints connect the collector app and the recycler dashboard through
+the shared Postgres tables (`recycler_profiles`, `handovers`, `transactions`).
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/api/recyclers` | optional | `{ success, recyclers[], count }` + `data`. Filter with `?categoryId=`. |
+| `POST` | `/api/handovers` | COLLECTOR, RECYCLER, ADMIN | Create handover for a lot. Body accepts camelCase or collector snake_case (`lot_id`, `agreed_amount`, …). Idempotent on `clientReference` / UUID `id`. |
+| `POST` | `/api/handovers/:id/confirm` | COLLECTOR, RECYCLER, ADMIN | Dual confirmation. When both sides (or an admin) confirm, creates a `transactions` row and moves the lot toward `COMPLETED`. |
+| `GET` | `/api/transactions/my` | COLLECTOR, RECYCLER, ADMIN | Collector earnings ledger / recycler settlement list. `{ success, transactions[], count }` + `data`. |
+
+`GET /api/lots` for a **RECYCLER** returns lots assigned to that recycler **or**
+still unclaimed (`recycler_id IS NULL`), so Incoming Lots can accept work.
+
+---
+
+## 11. Notifications and price alerts
 
 Both require a bearer token and return only the caller's own records.
 
@@ -298,7 +324,7 @@ Both require a bearer token and return only the caller's own records.
 
 ---
 
-## 11. AI gateway
+## 12. AI gateway
 
 ### `POST /api/ai/analyze` — optional auth
 
@@ -336,7 +362,7 @@ section 7); clients must word critical-mineral results as "potential".
 
 ---
 
-## 12. Graceful degradation (no database)
+## 13. Graceful degradation (no database)
 
 The process starts even when `DATABASE_URL` is not configured.
 

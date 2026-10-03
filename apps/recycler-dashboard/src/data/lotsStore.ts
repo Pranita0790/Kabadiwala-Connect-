@@ -1,29 +1,34 @@
-import type { Lot } from "./mockLots";
+import type { Lot, LotStatus } from "./mockLots";
+import {
+  fetchLotsFromApi,
+  getAccessToken,
+  patchLotStatus,
+} from "../lib/api";
 
 const STORAGE_KEY = "kabadiwala-lots";
 
 /**
- * Get the currently stored lots.
- * If nothing is stored yet, use the mock lots as the initial data.
+ * Get the currently stored lots (local cache).
+ * Prefer [refreshLotsFromBackend] for live data.
  */
 export function getStoredLots(): Lot[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
 
     if (!stored) {
-      return [...mockLots];
+      return [];
     }
 
     const parsed = JSON.parse(stored);
 
     if (!Array.isArray(parsed)) {
-      return [...mockLots];
+      return [];
     }
 
     return parsed as Lot[];
   } catch (error) {
     console.error("Failed to read stored lots:", error);
-    return [...mockLots];
+    return [];
   }
 }
 
@@ -32,141 +37,81 @@ export function getStoredLots(): Lot[] {
  */
 export function saveLots(lots: Lot[]): void {
   try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(lots)
-    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(lots));
   } catch (error) {
     console.error("Failed to save lots:", error);
   }
 }
 
+function notifyLotsUpdated(): void {
+  window.dispatchEvent(new Event("kabadiwala-lots-updated"));
+}
+
 /**
- * Update one lot's status.
+ * Pull live lots from GET /api/lots (requires recycler JWT).
+ * Falls back to the local cache when offline / unauthorized.
  */
-export function updateLotStatus(
+export async function refreshLotsFromBackend(): Promise<Lot[]> {
+  if (!getAccessToken()) {
+    const cached = getStoredLots();
+    notifyLotsUpdated();
+    return cached;
+  }
+
+  try {
+    const lots = await fetchLotsFromApi();
+    saveLots(lots);
+    notifyLotsUpdated();
+    return lots;
+  } catch (error) {
+    console.error("Failed to refresh lots from backend:", error);
+    const cached = getStoredLots();
+    notifyLotsUpdated();
+    return cached;
+  }
+}
+
+/**
+ * Update one lot's status locally and on the backend.
+ */
+export async function updateLotStatus(
   lotId: string,
-  newStatus: Lot["status"]
-): Lot[] {
+  newStatus: LotStatus
+): Promise<Lot[]> {
   const lots = getStoredLots();
+  const target = lots.find((lot) => lot.id === lotId || lot.publicId === lotId);
+
+  const identifier = target?.publicId || target?.id || lotId;
+
+  try {
+    await patchLotStatus(identifier, newStatus);
+  } catch (error) {
+    console.error("Backend status update failed:", error);
+    throw error;
+  }
 
   const updatedLots = lots.map((lot) =>
-    lot.id === lotId
-      ? {
-          ...lot,
-          status: newStatus,
-        }
+    lot.id === lotId || lot.publicId === lotId
+      ? { ...lot, status: newStatus }
       : lot
   );
 
   saveLots(updatedLots);
+  notifyLotsUpdated();
 
-  window.dispatchEvent(
-    new Event("kabadiwala-lots-updated")
-  );
-
-  return updatedLots;
+  // Re-fetch so collector/dashboard stay aligned with server state.
+  try {
+    return await refreshLotsFromBackend();
+  } catch {
+    return updatedLots;
+  }
 }
 
 /**
- * Reset stored lots back to the original mock data.
- * Useful during development/testing.
+ * Reset stored lots (clears local cache only).
  */
 export function resetStoredLots(): Lot[] {
-  const lots = [...mockLots];
-
-  saveLots(lots);
-
-  window.dispatchEvent(
-    new Event("kabadiwala-lots-updated")
-  );
-
-  return lots;
+  saveLots([]);
+  notifyLotsUpdated();
+  return [];
 }
-
-/**
- * Initial mock data.
- *
- * These are only used when localStorage does not
- * already contain lot data.
- */
-const mockLots: Lot[] = [
-  {
-    id: "KC-2026-0148",
-    material: "PCB",
-    collector: "Ramesh Kumar",
-    location: "Dharavi, Mumbai",
-    weight: 12.5,
-    aiConfidence: 0.991,
-    estimatedValue: 5604,
-    status: "Pending",
-    criticalMineral: true,
-    createdAt: "17 Sep 2026, 09:42 AM",
-    condition: "Scrap",
-  },
-  {
-    id: "KC-2026-0147",
-    material: "Battery",
-    collector: "Suresh Patil",
-    location: "Kurla, Mumbai",
-    weight: 8,
-    aiConfidence: 0.998,
-    estimatedValue: 800,
-    status: "Accepted",
-    criticalMineral: true,
-    createdAt: "17 Sep 2026, 08:25 AM",
-    condition: "Scrap",
-  },
-  {
-    id: "KC-2026-0146",
-    material: "Cable",
-    collector: "Amit Shah",
-    location: "Sion, Mumbai",
-    weight: 15.2,
-    aiConfidence: 0.642,
-    estimatedValue: 6027,
-    status: "Handover",
-    criticalMineral: false,
-    createdAt: "16 Sep 2026, 05:18 PM",
-    condition: "Scrap",
-  },
-  {
-    id: "KC-2026-0145",
-    material: "LCD Panel",
-    collector: "Vijay More",
-    location: "Chembur, Mumbai",
-    weight: 10,
-    aiConfidence: 0.829,
-    estimatedValue: null,
-    status: "Pending",
-    criticalMineral: false,
-    createdAt: "16 Sep 2026, 03:41 PM",
-    condition: "Scrap",
-  },
-  {
-    id: "KC-2026-0144",
-    material: "CRT",
-    collector: "Mahesh Jadhav",
-    location: "Wadala, Mumbai",
-    weight: 18,
-    aiConfidence: 0.905,
-    estimatedValue: null,
-    status: "Pending",
-    criticalMineral: false,
-    createdAt: "16 Sep 2026, 01:16 AM",
-    condition: "Scrap",
-  },
-  {
-    id: "KC-2026-0143",
-    material: "PCB",
-    collector: "Ravi Yadav",
-    location: "Kurla, Mumbai",
-    weight: 6.5,
-    aiConfidence: 0.987,
-    estimatedValue: 2914,
-    status: "Accepted",
-    criticalMineral: true,
-    createdAt: "16 Sep 2026, 11:08 AM",
-    condition: "Scrap",
-  },
-];

@@ -39,7 +39,7 @@ class SyncService {
     ConnectivityService? connectivityService,
     this.autoSyncOnOnline = true,
   })  : _dbService = dbService ?? DatabaseService.instance,
-        _apiService = apiService ?? RemoteApiService(),
+        _apiService = apiService ?? RemoteApiService.instance,
         _connectivityService = connectivityService ?? ConnectivityService.instance {
     _instance = this;
     if (autoSyncOnOnline) {

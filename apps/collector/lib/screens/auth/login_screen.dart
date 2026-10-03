@@ -93,7 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (result.success) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/home', (route) => false);
       } else {
         setState(() {
           _errorMessage = _authController.errorMessage != null
@@ -129,7 +130,8 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           LanguageSelectorMenu(
             controller: LocaleController.instance,
-            onLanguageChanged: widget.onLanguageChanged ?? (l) => LocaleController.instance.setLocale(l),
+            onLanguageChanged: widget.onLanguageChanged ??
+                (l) => LocaleController.instance.setLocale(l),
           ),
           const SizedBox(width: 8),
         ],
@@ -184,7 +186,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: _errorMessage != null ? AppColors.error : AppColors.primary.withAlpha(40),
+                    color: _errorMessage != null
+                        ? AppColors.error
+                        : AppColors.primary.withAlpha(40),
                     width: 1.5,
                   ),
                 ),
@@ -196,7 +200,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       // Mobile Number Label
                       Row(
                         children: [
-                          const Icon(Icons.phone_android_rounded, color: AppColors.primary, size: 20),
+                          const Icon(Icons.phone_android_rounded,
+                              color: AppColors.primary, size: 20),
                           const SizedBox(width: 8),
                           Text(
                             loc.translate('mobileNumber'),
@@ -219,7 +224,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.background,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: Colors.black12, width: 1.2),
+                              border:
+                                  Border.all(color: Colors.black12, width: 1.2),
                             ),
                             alignment: Alignment.center,
                             child: const Row(
@@ -247,6 +253,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 focusNode: _phoneFocusNode,
                                 keyboardType: TextInputType.phone,
                                 maxLength: 10,
+                                textInputAction: TextInputAction.done,
+                                onSubmitted: (_) =>
+                                    _isLoading ? null : _handleLogin(),
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -263,18 +272,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   filled: true,
                                   fillColor: AppColors.background,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 14),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Colors.black12, width: 1.2),
+                                    borderSide: const BorderSide(
+                                        color: Colors.black12, width: 1.2),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Colors.black12, width: 1.2),
+                                    borderSide: const BorderSide(
+                                        color: Colors.black12, width: 1.2),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.primary, width: 2),
                                   ),
                                 ),
                                 onChanged: (_) {
@@ -293,7 +306,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       // Password Label
                       Row(
                         children: [
-                          const Icon(Icons.lock_outline_rounded, color: AppColors.primary, size: 20),
+                          const Icon(Icons.lock_outline_rounded,
+                              color: AppColors.primary, size: 20),
                           const SizedBox(width: 8),
                           Text(
                             loc.translate('password'),
@@ -328,23 +342,29 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             filled: true,
                             fillColor: AppColors.background,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 14),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Colors.black12, width: 1.2),
+                              borderSide: const BorderSide(
+                                  color: Colors.black12, width: 1.2),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Colors.black12, width: 1.2),
+                              borderSide: const BorderSide(
+                                  color: Colors.black12, width: 1.2),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                              borderSide: const BorderSide(
+                                  color: AppColors.primary, width: 2),
                             ),
                             suffixIcon: IconButton(
                               key: const Key('login_toggle_password_btn'),
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                                 color: Colors.grey.shade600,
                               ),
                               tooltip: _obscurePassword
@@ -371,7 +391,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 14),
                         Row(
                           children: [
-                            const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 18),
+                            const Icon(Icons.error_outline_rounded,
+                                color: AppColors.error, size: 18),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -398,7 +419,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 onTap: _fillDemoCredentials,
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withAlpha(20),
                     borderRadius: BorderRadius.circular(12),
@@ -407,7 +429,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.touch_app_rounded, color: AppColors.primary, size: 18),
+                      const Icon(Icons.touch_app_rounded,
+                          color: AppColors.primary, size: 18),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(

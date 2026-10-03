@@ -93,6 +93,9 @@ abstract class ApiService {
   /// Proposed Contract: POST /api/price-alerts
   /// Status: PENDING BACKEND CONFIRMATION (Member 3)
   Future<ApiResponse<PriceAlert>> uploadPriceAlert(PriceAlert alert);
+
+  /// Check backend health status via /health/live.
+  Future<bool> checkBackendHealth();
 }
 
 /// Mock implementation of [ApiService] for testing and offline/sync simulation.
@@ -101,6 +104,9 @@ class MockApiService implements ApiService {
   Duration delay = Duration.zero;
   int uploadCallCount = 0;
   final List<EWasteLot> uploadedLots = [];
+
+  @override
+  Future<bool> checkBackendHealth() async => true;
 
   @override
   Future<ApiResponse<EWasteLot>> uploadLot(EWasteLot lot) async {
@@ -465,41 +471,445 @@ class MockApiService implements ApiService {
 }
 
 /// Remote implementation of [ApiService].
-/// Uses mock responses until the live backend API contracts are supplied.
+/// Connects to Node.js Express Backend. Lot/handover/transaction writes do not
+/// fake-succeed via [MockApiService] — they fail so sync stays PENDING_SYNC.
 class RemoteApiService implements ApiService {
+  static RemoteApiService? _instance;
+
+  final String baseUrl;
+  final http.Client _client;
   final MockApiService _mock = MockApiService();
+  String? _authToken;
+
+  RemoteApiService({
+    String? baseUrl,
+    http.Client? client,
+    String? authToken,
+  })  : baseUrl = baseUrl ?? AppConstants.apiBaseUrl,
+        _client = client ?? http.Client(),
+        _authToken = authToken;
+
+  static RemoteApiService get instance {
+    _instance ??= RemoteApiService();
+    return _instance!;
+  }
+
+  static void setInstance(RemoteApiService service) {
+    _instance = service;
+  }
+
+  void setAuthToken(String? token) {
+    _authToken = (token != null && token.isNotEmpty) ? token : null;
+  }
+
+  String? get authToken => _authToken;
+
+  Map<String, String> get _headers => {
+        'Content-Type': 'application/json',
+        if (_authToken != null && _authToken!.isNotEmpty)
+          'Authorization': 'Bearer $_authToken',
+      };
+
+  /// Maps collector category ids onto backend `materials.id` values.
+  static String mapMaterialId(String categoryId) {
+    final key = categoryId.trim().toLowerCase();
+    const aliases = {
+      'pcb_motherboard': 'pcb',
+      'motherboard': 'pcb',
+      'motherboard_pcb': 'pcb',
+      'pcb': 'pcb',
+      'battery': 'battery',
+      'batteries': 'battery',
+      'lithium_batteries': 'battery',
+      'cable': 'cable',
+      'copper_wire': 'cable',
+      'crt': 'crt',
+      'lcd_panel': 'lcd_panel',
+      'lcd': 'lcd_panel',
+      'display': 'lcd_panel',
+      'monitors_displays': 'lcd_panel',
+      'motor': 'motor',
+      'mixed': 'mixed_plastics',
+      'mixed_plastics': 'mixed_plastics',
+    };
+    return aliases[key] ?? key;
+  }
+
+  static String mapCondition(String condition) {
+    switch (condition.trim().toLowerCase()) {
+      case 'good':
+        return 'Good';
+      case 'partial':
+      case 'partially_damaged':
+        return 'Partial';
+      default:
+        return 'Scrap';
+    }
+  }
+
+  Map<String, dynamic> lotToApiBody(EWasteLot lot) {
+    final materialId = mapMaterialId(lot.categoryId);
+    final body = <String, dynamic>{
+      'materialId': materialId,
+      'categoryName': lot.categoryName,
+      'condition': mapCondition(lot.condition),
+      'weightKg': lot.weightKg,
+      'syncStatus': 'PENDING_SYNC',
+      'notes': lot.notes,
+      'imagePath': lot.imagePath,
+    };
+    // Backend expects a UUID clientReference for idempotent offline sync.
+    final uuidPattern = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+    if (uuidPattern.hasMatch(lot.id)) {
+      body['clientReference'] = lot.id;
+    }
+    return body;
+  }
+
+  /// Password login against `POST /api/auth/login`.
+  Future<ApiResponse<Map<String, dynamic>>> loginWithPassword({
+    required String identifier,
+    required String password,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/login');
+      final response = await _client
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: json.encode({
+              'identifier': identifier,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 12));
+
+      final body = json.decode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 200 && body['success'] == true) {
+        final data = Map<String, dynamic>.from(body['data'] as Map? ?? body);
+        final access = data['accessToken'] as String?;
+        if (access != null) {
+          setAuthToken(access);
+        }
+        return ApiResponse.success(data, statusCode: 200);
+      }
+      return ApiResponse.failure(
+        (body['code'] as String?) ??
+            (body['message'] as String?) ??
+            'invalidCredentialsError',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      return ApiResponse.failure('authBackendUnreachable: $e');
+    }
+  }
+
+  /// Collector registration against `POST /api/auth/register`.
+  Future<ApiResponse<Map<String, dynamic>>> registerCollector({
+    required String fullName,
+    required String phone,
+    required String password,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/register');
+      final response = await _client
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: json.encode({
+              'fullName': fullName,
+              'phone': phone,
+              'password': password,
+              'role': 'COLLECTOR',
+            }),
+          )
+          .timeout(const Duration(seconds: 12));
+
+      final body = json.decode(response.body) as Map<String, dynamic>;
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          body['success'] == true) {
+        return ApiResponse.success(
+          Map<String, dynamic>.from(body['data'] as Map? ?? body),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        (body['code'] as String?) ??
+            (body['message'] as String?) ??
+            'registerFailed',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      return ApiResponse.failure('authBackendUnreachable: $e');
+    }
+  }
 
   @override
-  Future<ApiResponse<EWasteLot>> uploadLot(EWasteLot lot) => _mock.uploadLot(lot);
+  Future<bool> checkBackendHealth() async {
+    try {
+      final rootUrl = baseUrl.replaceAll('/api', '');
+      final response = await _client
+          .get(Uri.parse('$rootUrl/health/live'))
+          .timeout(const Duration(seconds: 3));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
-  Future<ApiResponse<bool>> syncLotById(String id, Map<String, dynamic> lotData) =>
-      _mock.syncLotById(id, lotData);
+  Future<ApiResponse<EWasteLot>> uploadLot(EWasteLot lot) async {
+    try {
+      final uri = Uri.parse('$baseUrl/lots');
+      final response = await _client
+          .post(
+            uri,
+            headers: _headers,
+            body: json.encode(lotToApiBody(lot)),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final body = json.decode(response.body);
+        final data = body['data']?['lot'] ?? body['lot'] ?? body['data'];
+        if (data != null || body['success'] == true) {
+          return ApiResponse.success(lot, statusCode: response.statusCode);
+        }
+      }
+      final body = json.decode(response.body);
+      return ApiResponse.failure(
+        (body['message'] as String?) ?? 'Lot upload failed',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      return ApiResponse.failure('Lot upload failed: $e');
+    }
+  }
 
   @override
-  Future<ApiResponse<List<Price>>> fetchMarketPrices() => _mock.fetchMarketPrices();
+  Future<ApiResponse<bool>> syncLotById(String id, Map<String, dynamic> lotData) async {
+    try {
+      final uri = Uri.parse('$baseUrl/lots/sync');
+      final item = Map<String, dynamic>.from(lotData);
+      if (!item.containsKey('clientReference')) {
+        item['clientReference'] = id;
+      }
+      final response = await _client
+          .post(
+            uri,
+            headers: _headers,
+            body: json.encode({
+              'items': [item],
+              'conflictStrategy': 'CLIENT_WINS',
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse.success(true, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        'Lot sync failed',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      return ApiResponse.failure('Lot sync failed: $e');
+    }
+  }
 
   @override
-  Future<ApiResponse<List<Transaction>>> fetchMyTransactions() =>
-      _mock.fetchMyTransactions();
+  Future<ApiResponse<List<Price>>> fetchMarketPrices() async {
+    try {
+      final uri = Uri.parse('$baseUrl/prices');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        final rawList = body['data']?['rates'] ?? body['rates'] ?? body['data'];
+        if (rawList is List && rawList.isNotEmpty) {
+          final prices = rawList.map((item) {
+            final rate = (item['ratePerKg'] as num?)?.toDouble() ?? 0.0;
+            return Price(
+              id: item['id']?.toString() ?? 'item_${item['materialId']}',
+              material: item['materialName'] ?? item['categoryName'] ?? 'E-Waste',
+              categoryNameEn: item['materialName'] ?? item['categoryName'] ?? 'E-Waste',
+              categoryNameHi: item['categoryNameHi'] ?? item['materialName'] ?? 'ई-कचरा',
+              categoryNameMr: item['categoryNameMr'] ?? item['materialName'] ?? 'ई-कचरा',
+              minPrice: rate > 0 ? (rate * 0.9).roundToDouble() : 50.0,
+              maxPrice: rate > 0 ? (rate * 1.1).roundToDouble() : 100.0,
+              unit: item['unit'] ?? 'kg',
+              location: item['region'] ?? 'Nagpur',
+              source: item['source'] ?? 'Formal Benchmark',
+              updatedAt: item['updatedAt'] != null ? DateTime.tryParse(item['updatedAt']) ?? DateTime.now() : DateTime.now(),
+              iconAsset: 'recycling',
+            );
+          }).toList();
+          return ApiResponse.success(prices, statusCode: 200);
+        }
+      }
+      return await _mock.fetchMarketPrices();
+    } catch (_) {
+      return await _mock.fetchMarketPrices();
+    }
+  }
 
   @override
-  Future<ApiResponse<List<Recycler>>> fetchMatchingRecyclers({String? categoryId}) =>
-      _mock.fetchMatchingRecyclers(categoryId: categoryId);
+  Future<ApiResponse<List<Transaction>>> fetchMyTransactions() async {
+    // Do not fall back to MockApiService demo rows (₹10,200 etc.).
+    // That endpoint is not implemented on the backend yet; on failure the
+    // repository must read real local SQLite transactions instead.
+    try {
+      final uri = Uri.parse('$baseUrl/transactions/my');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        final rawList = body['data']?['transactions'] ?? body['transactions'] ?? body['data'];
+        if (rawList is List) {
+          final transactions = rawList
+              .map((item) => Transaction.fromMap(Map<String, dynamic>.from(item as Map)))
+              .toList();
+          return ApiResponse.success(transactions, statusCode: 200);
+        }
+        return ApiResponse.success(const <Transaction>[], statusCode: 200);
+      }
+      return ApiResponse.failure(
+        'Transactions endpoint unavailable',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      return ApiResponse.failure('Failed to fetch transactions: $e');
+    }
+  }
 
   @override
-  Future<ApiResponse<Handover>> uploadHandover(Handover handover) =>
-      _mock.uploadHandover(handover);
+  Future<ApiResponse<List<Recycler>>> fetchMatchingRecyclers({String? categoryId}) async {
+    try {
+      final query = (categoryId != null && categoryId.isNotEmpty && categoryId != 'all')
+          ? '?categoryId=$categoryId'
+          : '';
+      final uri = Uri.parse('$baseUrl/recyclers$query');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        final rawList = body['data']?['recyclers'] ?? body['recyclers'] ?? body['data'];
+        if (rawList is List && rawList.isNotEmpty) {
+          final recyclers = rawList
+              .map((item) => Recycler.fromMap(Map<String, dynamic>.from(item as Map)))
+              .toList();
+          return ApiResponse.success(recyclers, statusCode: 200);
+        }
+      }
+      return await _mock.fetchMatchingRecyclers(categoryId: categoryId);
+    } catch (_) {
+      return await _mock.fetchMatchingRecyclers(categoryId: categoryId);
+    }
+  }
 
   @override
-  Future<ApiResponse<bool>> confirmHandoverOnBackend(String handoverId) =>
-      _mock.confirmHandoverOnBackend(handoverId);
+  Future<ApiResponse<Handover>> uploadHandover(Handover handover) async {
+    try {
+      final uri = Uri.parse('$baseUrl/handovers');
+      final body = {
+        'id': handover.id,
+        'clientReference': RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+        ).hasMatch(handover.id)
+            ? handover.id
+            : null,
+        'lotId': handover.lotId,
+        'lot_id': handover.lotId,
+        'recyclerId': handover.recyclerId,
+        'materialCategory': handover.materialCategory,
+        'weightKg': handover.weightKg,
+        'agreedAmount': handover.agreedAmount,
+        'qrPayload': handover.qrPayload,
+      }..removeWhere((key, value) => value == null);
+
+      final response = await _client
+          .post(
+            uri,
+            headers: _headers,
+            body: json.encode(body),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse.success(handover, statusCode: response.statusCode);
+      }
+      final decoded = json.decode(response.body);
+      return ApiResponse.failure(
+        (decoded['message'] as String?) ?? 'Handover upload failed',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      return ApiResponse.failure('Handover upload failed: $e');
+    }
+  }
 
   @override
-  Future<ApiResponse<List<AppNotification>>> fetchNotifications() =>
-      _mock.fetchNotifications();
+  Future<ApiResponse<bool>> confirmHandoverOnBackend(String handoverId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/handovers/$handoverId/confirm');
+      final response = await _client
+          .post(uri, headers: _headers)
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        return ApiResponse.success(true, statusCode: 200);
+      }
+      return ApiResponse.failure(
+        'Handover confirm failed',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      return ApiResponse.failure('Handover confirm failed: $e');
+    }
+  }
 
   @override
-  Future<ApiResponse<PriceAlert>> uploadPriceAlert(PriceAlert alert) =>
-      _mock.uploadPriceAlert(alert);
+  Future<ApiResponse<List<AppNotification>>> fetchNotifications() async {
+    try {
+      final uri = Uri.parse('$baseUrl/notifications');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        final rawList = body['data']?['notifications'] ?? body['notifications'] ?? body['data'];
+        if (rawList is List && rawList.isNotEmpty) {
+          final notifs = rawList
+              .map((item) => AppNotification.fromMap(Map<String, dynamic>.from(item as Map)))
+              .toList();
+          return ApiResponse.success(notifs, statusCode: 200);
+        }
+      }
+      return await _mock.fetchNotifications();
+    } catch (_) {
+      return await _mock.fetchNotifications();
+    }
+  }
+
+  @override
+  Future<ApiResponse<PriceAlert>> uploadPriceAlert(PriceAlert alert) async {
+    try {
+      final uri = Uri.parse('$baseUrl/price-alerts');
+      final response = await _client
+          .post(
+            uri,
+            headers: _headers,
+            body: json.encode(alert.toMap()),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse.success(alert, statusCode: response.statusCode);
+      }
+      return await _mock.uploadPriceAlert(alert);
+    } catch (_) {
+      return await _mock.uploadPriceAlert(alert);
+    }
+  }
 }

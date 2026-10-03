@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:kabadiwala_connect/core/auth/auth_controller.dart';
+import 'package:kabadiwala_connect/core/constants/app_constants.dart';
 import 'package:kabadiwala_connect/core/localization/app_localizations.dart';
 import 'package:kabadiwala_connect/core/localization/locale_controller.dart';
 import 'package:kabadiwala_connect/models/user_profile.dart';
@@ -110,13 +111,15 @@ void main() {
         '/auth-landing': (context) => const AuthLandingScreen(),
         '/login': (context) => LoginScreen(authController: authController),
         '/signup': (context) => SignUpScreen(authController: authController),
-        '/profile-setup': (context) => ProfileSetupScreen(authController: authController),
+        '/profile-setup': (context) =>
+            ProfileSetupScreen(authController: authController),
         '/onboarding': (context) => const OnboardingScreen(),
         '/profile': (context) => ProfileScreen(
               authController: authController,
               localeController: localeController,
             ),
-        '/edit-profile': (context) => EditProfileScreen(authController: authController),
+        '/edit-profile': (context) =>
+            EditProfileScreen(authController: authController),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/otp') {
@@ -140,7 +143,8 @@ void main() {
       expect(AuthService.validateIndianMobile(null), 'emptyPhone');
       expect(AuthService.validateIndianMobile(''), 'emptyPhone');
       expect(AuthService.validateIndianMobile('12345'), 'invalidPhoneLength');
-      expect(AuthService.validateIndianMobile('1234567890'), 'invalidStartDigit');
+      expect(
+          AuthService.validateIndianMobile('1234567890'), 'invalidStartDigit');
       expect(AuthService.validateIndianMobile('9876543210'), isNull);
       expect(AuthService.validateIndianMobile('+91 98765 43210'), isNull);
 
@@ -149,7 +153,9 @@ void main() {
       expect(AuthService.validatePassword('123456'), isNull);
     });
 
-    test('Scenario A: Sign Up flow initiates OTP and creates user upon verification', () async {
+    test(
+        'Scenario A: Sign Up flow initiates OTP and creates user upon verification',
+        () async {
       final initiated = await authController.initiateSignUp(
         name: 'Ramesh Shinde',
         phone: '9876543210',
@@ -179,7 +185,8 @@ void main() {
       expect(savedUser.passwordHash, isNotNull);
     });
 
-    test('Scenario B: Existing user Login with password (NO OTP required)', () async {
+    test('Scenario B: Existing user Login with password (NO OTP required)',
+        () async {
       // 1. Create existing user
       final createdUser = await authService.createAccountWithPassword(
         name: 'Suresh Patil',
@@ -260,7 +267,8 @@ void main() {
   });
 
   group('AuthLandingScreen Widget Tests', () {
-    testWidgets('Renders Namaste, Welcome, LOGIN, and CREATE ACCOUNT choices', (tester) async {
+    testWidgets('Renders Namaste, Welcome, LOGIN, and CREATE ACCOUNT choices',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -270,7 +278,8 @@ void main() {
 
       expect(find.text('Namaste 👋'), findsOneWidget);
       expect(find.text('Welcome to Kabadiwala Connect'), findsOneWidget);
-      expect(find.text('Sell, track and manage your scrap easily.'), findsOneWidget);
+      expect(find.text('Sell, track and manage your scrap easily.'),
+          findsOneWidget);
       expect(find.byKey(const Key('landing_login_btn')), findsOneWidget);
       expect(find.byKey(const Key('landing_signup_btn')), findsOneWidget);
     });
@@ -287,7 +296,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Welcome back 👋'), findsOneWidget);
-      expect(find.text('Login to continue to Kabadiwala Connect'), findsOneWidget);
+      expect(
+          find.text('Login to continue to Kabadiwala Connect'), findsOneWidget);
       expect(find.byKey(const Key('login_submit_btn')), findsOneWidget);
     });
 
@@ -309,12 +319,14 @@ void main() {
   });
 
   group('LoginScreen Widget Tests', () {
-    testWidgets('Renders Mobile, Password, Show/Hide toggle, and no OTP', (tester) async {
+    testWidgets('Renders Mobile, Password, Show/Hide toggle, and no OTP',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget(LoginScreen(authController: authController)));
+      await tester.pumpWidget(
+          createTestWidget(LoginScreen(authController: authController)));
       await tester.pump();
 
       expect(find.text('Welcome back 👋'), findsOneWidget);
@@ -322,28 +334,34 @@ void main() {
       expect(find.text('Password'), findsOneWidget);
       expect(find.byKey(const Key('login_phone_field')), findsOneWidget);
       expect(find.byKey(const Key('login_password_field')), findsOneWidget);
-      expect(find.byKey(const Key('login_toggle_password_btn')), findsOneWidget);
+      expect(
+          find.byKey(const Key('login_toggle_password_btn')), findsOneWidget);
       expect(find.byKey(const Key('login_submit_btn')), findsOneWidget);
       expect(find.text('Get OTP'), findsNothing); // NO OTP ON LOGIN SCREEN
     });
 
-    testWidgets('Shows error on invalid mobile or empty password', (tester) async {
+    testWidgets('Shows error on invalid mobile or empty password',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget(LoginScreen(authController: authController)));
+      await tester.pumpWidget(
+          createTestWidget(LoginScreen(authController: authController)));
       await tester.pump();
 
       // Enter invalid phone
-      await tester.enterText(find.byKey(const Key('login_phone_field')), '1234');
+      await tester.enterText(
+          find.byKey(const Key('login_phone_field')), '1234');
       await tester.tap(find.byKey(const Key('login_submit_btn')));
       await tester.pump();
 
-      expect(find.text('Please enter a valid 10-digit mobile number'), findsOneWidget);
+      expect(find.text('Please enter a valid 10-digit mobile number'),
+          findsOneWidget);
 
       // Enter valid phone but empty password
-      await tester.enterText(find.byKey(const Key('login_phone_field')), '9876543210');
+      await tester.enterText(
+          find.byKey(const Key('login_phone_field')), '9876543210');
       await tester.tap(find.byKey(const Key('login_submit_btn')));
       await tester.pump();
 
@@ -352,47 +370,212 @@ void main() {
   });
 
   group('SignUpScreen Widget Tests', () {
-    testWidgets('Renders all registration fields, city chips, and role cards', (tester) async {
+    testWidgets('Renders all registration fields, city chips, and role cards',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget(SignUpScreen(authController: authController)));
+      await tester.pumpWidget(
+          createTestWidget(SignUpScreen(authController: authController)));
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const Key('login_phone_field')),
+        '9876543210',
+      );
+      await tester.tap(find.byKey(const Key('login_submit_btn')));
+      await tester.pumpAndSettle();
+
+      expect(fakeFirebase.sendCount, 1);
+      expect(fakeFirebase.lastSentPhone, '+919876543210');
+      expect(find.byType(OtpVerificationScreen), findsOneWidget);
+    });
+  });
+
+  group('Password sign-in', () {
+    test('the backend session signs the collector in', () async {
+      final result = await authController.loginWithPassword(
+        phoneNumber: '9876543210',
+        password: 'secret123',
+      );
+
+      expect(result.success, isTrue);
+      expect(authController.isAuthenticated, isTrue);
+
+      // The password reached the backend and nothing was stored on device.
+      expect(fakeCollectorAuth.lastPassword, 'secret123');
+      final stored = await dbService.getUserByPhone('+919876543210');
+      expect(stored?.passwordHash, isNull);
+      expect(stored?.backendUserId, 'backend-user-1');
+      expect(await sessionStore.hasSession(), isTrue);
+    });
+
+    test('details already saved on the device are reused', () async {
+      await authService.completeUserProfile(
+        phoneNumber: '9876543210',
+        name: 'Vijay Kumar',
+        city: 'Nagpur',
+      );
+
+      final result = await authController.loginWithPassword(
+        phoneNumber: '9876543210',
+        password: 'secret123',
+      );
+
+      expect(result.success, isTrue);
+      expect(authController.currentUser?.name, 'Vijay Kumar');
+      expect(authController.currentUser?.city, 'Nagpur');
+      expect(authController.isAuthenticated, isTrue);
+    });
+
+    test('a rejected sign-in reports the backend reason', () async {
+      fakeCollectorAuth.passwordLoginRejection = 'INVALID_CREDENTIALS';
+
+      final result = await authController.loginWithPassword(
+        phoneNumber: '9876543210',
+        password: 'wrong-password',
+      );
+
+      expect(result.success, isFalse);
+      expect(result.errorMessage, 'invalidCredentialsError');
+      expect(authController.errorMessage, 'invalidCredentialsError');
+      expect(authController.isAuthenticated, isFalse);
+    });
+  });
+
+  group('Demo auto sign-in', () {
+    test('signs the demo collector in on a cold start', () async {
+      final controller = AuthController(
+        authService: authService,
+        firebaseAuth: fakeFirebase,
+        sessionStore: sessionStore,
+        collectorAuth: fakeCollectorAuth,
+      );
+      expect(controller.demoAuthEnabled, isTrue);
+
+      await controller.initialize();
+
+      expect(controller.isAuthenticated, isTrue);
+      expect(controller.currentUser?.name, DemoAuth.name);
+      expect(controller.currentUser?.city, DemoAuth.city);
+      expect(controller.currentUser?.phoneNumber, '+919876543210');
+    });
+
+    test('leaves the login gate in place when switched off', () async {
+      final controller = buildController();
+
+      await controller.initialize();
+
+      expect(controller.isAuthenticated, isFalse);
+      expect(await dbService.getCurrentUser(), isNull);
+    });
+
+    test('keeps a real signed-in collector as they are', () async {
+      final user = await authService.completeUserProfile(
+        phoneNumber: '9876543210',
+        name: 'Vijay Kumar',
+        city: 'Nagpur',
+      );
+      await dbService.setCurrentUserId(user.id);
+
+      final controller = AuthController(
+        authService: authService,
+        firebaseAuth: fakeFirebase,
+        sessionStore: sessionStore,
+        collectorAuth: fakeCollectorAuth,
+      );
+      await controller.initialize();
+
+      expect(controller.currentUser?.name, 'Vijay Kumar');
+    });
+
+    test('a session restored on a later launch is not overwritten', () async {
+      await authService.completeUserProfile(
+        phoneNumber: '9876543210',
+        name: 'Santosh Kumar',
+        city: 'Nagpur',
+        backendUserId: 'backend-user-1',
+      );
+      await sessionStore.write(
+        const CollectorSession(
+          userId: 'backend-user-1',
+          accessToken: 'a',
+          refreshToken: 'r',
+          role: 'COLLECTOR',
+        ),
+      );
+
+      final controller = AuthController(
+        authService: authService,
+        firebaseAuth: fakeFirebase,
+        sessionStore: sessionStore,
+        collectorAuth: fakeCollectorAuth,
+      );
+      await controller.initialize();
+
+      expect(controller.isAuthenticated, isTrue);
+      expect(controller.currentUser?.name, 'Santosh Kumar');
+      expect(controller.currentUser?.backendUserId, 'backend-user-1');
+    });
+  });
+
+  group('SignUpScreen Widget Tests', () {
+    testWidgets('Renders all registration fields, city chips, and role cards',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+          createTestWidget(SignUpScreen(authController: authController)));
       await tester.pump();
 
       expect(find.text('Create your account 👋'), findsOneWidget);
       expect(find.byKey(const Key('signup_name_field')), findsOneWidget);
       expect(find.byKey(const Key('signup_phone_field')), findsOneWidget);
       expect(find.byKey(const Key('signup_password_field')), findsOneWidget);
-      expect(find.byKey(const Key('signup_confirm_password_field')), findsOneWidget);
+      expect(find.byKey(const Key('signup_confirm_password_field')),
+          findsOneWidget);
       expect(find.byKey(const Key('signup_city_field')), findsOneWidget);
       expect(find.text('Scrap Collector'), findsOneWidget);
       expect(find.text('Recycler'), findsOneWidget);
       expect(find.byKey(const Key('signup_submit_btn')), findsOneWidget);
     });
 
-    testWidgets('Validates password match and length on Sign Up', (tester) async {
+    testWidgets('Validates password match and length on Sign Up',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget(SignUpScreen(authController: authController)));
+      await tester.pumpWidget(
+          createTestWidget(SignUpScreen(authController: authController)));
       await tester.pump();
 
-      await tester.enterText(find.byKey(const Key('signup_name_field')), 'Ramesh Shinde');
-      await tester.enterText(find.byKey(const Key('signup_phone_field')), '9876543210');
-      await tester.enterText(find.byKey(const Key('signup_password_field')), '123'); // short
-      await tester.enterText(find.byKey(const Key('signup_confirm_password_field')), '123');
-      await tester.enterText(find.byKey(const Key('signup_city_field')), 'Pune');
+      await tester.enterText(
+          find.byKey(const Key('signup_name_field')), 'Ramesh Shinde');
+      await tester.enterText(
+          find.byKey(const Key('signup_phone_field')), '9876543210');
+      await tester.enterText(
+          find.byKey(const Key('signup_password_field')), '123'); // short
+      await tester.enterText(
+          find.byKey(const Key('signup_confirm_password_field')), '123');
+      await tester.enterText(
+          find.byKey(const Key('signup_city_field')), 'Pune');
 
       await tester.tap(find.byKey(const Key('signup_submit_btn')));
       await tester.pump();
 
-      expect(find.text('Password must be at least 6 characters.'), findsOneWidget);
+      expect(
+          find.text('Password must be at least 6 characters.'), findsOneWidget);
 
       // Mismatched passwords
-      await tester.enterText(find.byKey(const Key('signup_password_field')), 'password123');
-      await tester.enterText(find.byKey(const Key('signup_confirm_password_field')), 'differentPass');
+      await tester.enterText(
+          find.byKey(const Key('signup_password_field')), 'password123');
+      await tester.enterText(
+          find.byKey(const Key('signup_confirm_password_field')),
+          'differentPass');
       await tester.tap(find.byKey(const Key('signup_submit_btn')));
       await tester.pump();
 
@@ -401,7 +584,9 @@ void main() {
   });
 
   group('KabadiwalaConnectApp Root Auth Gate Tests', () {
-    testWidgets('Fresh install / unauthenticated user lands directly on AuthLandingScreen', (tester) async {
+    testWidgets(
+        'Fresh install / unauthenticated user lands directly on AuthLandingScreen',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -423,7 +608,8 @@ void main() {
       expect(find.byKey(const Key('landing_signup_btn')), findsOneWidget);
     });
 
-    testWidgets('Authenticated existing user lands directly on HomeScreen', (tester) async {
+    testWidgets('Authenticated existing user lands directly on HomeScreen',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);

@@ -32,7 +32,14 @@ import "./App.css";
 
 import {
   getStoredLots,
+  refreshLotsFromBackend,
 } from "./data/lotsStore";
+import {
+  clearSession,
+  getAccessToken,
+  getStoredUser,
+} from "./lib/api";
+import Login from "./pages/Login";
 
 
 /* =========================================================
@@ -627,6 +634,11 @@ function App() {
 
   const location = useLocation();
 
+  const [authed, setAuthed] = useState(
+    () => Boolean(getAccessToken())
+  );
+
+  const authUser = getStoredUser();
 
   const [
     lots,
@@ -634,6 +646,20 @@ function App() {
   ] = useState<Lot[]>(
     getStoredLots
   );
+
+  useEffect(() => {
+    if (!authed) return;
+
+    refreshLotsFromBackend()
+      .then(setLots)
+      .catch(() => setLots(getStoredLots()));
+
+    const interval = window.setInterval(() => {
+      refreshLotsFromBackend().then(setLots).catch(() => {});
+    }, 20000);
+
+    return () => window.clearInterval(interval);
+  }, [authed]);
 
 
   /* =========================================================
@@ -706,8 +732,20 @@ function App() {
       );
 
     };
-
   }, []);
+
+  if (!authed) {
+    return (
+      <Login
+        onSuccess={() => {
+          setAuthed(true);
+          refreshLotsFromBackend()
+            .then(setLots)
+            .catch(() => setLots(getStoredLots()));
+        }}
+      />
+    );
+  }
 
 
   /* =========================================================
@@ -1134,17 +1172,30 @@ function App() {
               <div className="profile-info">
 
                 <strong>
-                  EcoCycle Recycler
+                  {authUser?.organisationName ||
+                    authUser?.fullName ||
+                    "Recycler"}
                 </strong>
 
                 <span>
-                  Mumbai Facility
+                  {authUser?.phone ||
+                    authUser?.email ||
+                    "Signed in"}
                 </span>
 
               </div>
 
-
-              <ChevronDown size={17} />
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Sign out"
+                onClick={() => {
+                  clearSession();
+                  setAuthed(false);
+                }}
+              >
+                <ChevronDown size={17} />
+              </button>
 
             </div>
 

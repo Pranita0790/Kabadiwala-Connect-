@@ -48,3 +48,26 @@ class HandoverStatus {
   static const String cancelled = 'CANCELLED';
 }
 
+/// TEMPORARY: a ready-made collector so the app opens without signing in.
+///
+/// This exists so the build can be reviewed and demoed without an SMS round
+/// trip. It grants nothing on the server — the profile is planted in local
+/// SQLite only, so API calls still fail until a real session exists.
+///
+/// Setting [autoSignInEnabled] to false restores the normal login gate; no
+/// other code has to change. Delete this class once real auth is in place.
+class DemoAuth {
+  /// While true, `AuthController.initialize()` signs [name] in automatically.
+  static const bool autoSignInEnabled = false;
+
+  static const String phoneNumber = '9876543210';
+  static const String name = 'Ramesh Shinde';
+  static const String city = 'Pune';
+  static const String role = 'collector';
+
+  /// No password is defined on purpose: the seeded profile has no backend
+  /// account, so a password here would be a dead credential that reads like a
+  /// real secret. The sign-in screen takes the password from the person using
+  /// it.
+}
+

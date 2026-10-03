@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
@@ -21,7 +22,7 @@ class RemoteAiClassificationService implements AiClassificationService {
     try {
       final file = File(imagePath);
       if (!await file.exists()) {
-        print('Image file does not exist: $imagePath');
+        developer.log('Image file does not exist: $imagePath', name: 'ai.classify');
         return null;
       }
 
@@ -59,11 +60,14 @@ class RemoteAiClassificationService implements AiClassificationService {
           );
         }
       } else {
-        print('Failed to analyze image: ${response.statusCode}');
-        print('Response: ${response.body}');
+        developer.log(
+          'Failed to analyze image: ${response.statusCode}',
+          name: 'ai.classify',
+          error: response.body,
+        );
       }
     } catch (e) {
-      print('Error during AI classification: $e');
+      developer.log('AI classification error', name: 'ai.classify', error: e);
     }
     
     return null;

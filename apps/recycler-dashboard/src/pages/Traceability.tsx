@@ -662,11 +662,8 @@ export default function Traceability() {
           .filter((item: Lot | null): item is Lot => item !== null);
 
         if (active && backendLots.length > 0) {
-          setLots((currentLots) =>
-            currentLots.length > 0
-              ? currentLots
-              : backendLots
-          );
+          // Prefer live backend records over stale localStorage mocks.
+          setLots(backendLots);
         }
       } catch {
         // LocalStorage remains the fallback.

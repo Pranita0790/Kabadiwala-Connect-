@@ -25,7 +25,7 @@ class PriceRepository {
     ApiService? apiService,
     ConnectivityService? connectivityService,
   })  : _dbService = dbService ?? DatabaseService(),
-        _apiService = apiService ?? RemoteApiService(),
+        _apiService = apiService ?? RemoteApiService.instance,
         _connectivityService = connectivityService ?? ConnectivityService();
 
   /// Retrieves market price benchmarks adhering to offline-first design:

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   CalendarDays,
@@ -6,6 +6,7 @@ import {
   Search,
   Wallet,
 } from "lucide-react";
+import { fetchMyTransactions } from "../lib/api";
 
 type TransactionStatus = "Paid" | "Pending" | "Failed";
 
@@ -22,104 +23,30 @@ type Transaction = {
   referenceId: string;
 };
 
-const transactions: Transaction[] = [
-  {
-    id: "TXN-001",
-    lotId: "LOT-001",
-    collector: "Rajesh Kumar",
-    material: "PCB",
-    weight: 2.5,
-    amount: 2500,
-    date: "28 Sep 2026",
-    status: "Paid",
-    paymentMethod: "UPI",
-    referenceId: "UPI-782341",
-  },
-  {
-    id: "TXN-002",
-    lotId: "LOT-002",
-    collector: "Amit Patil",
-    material: "Battery",
-    weight: 3.2,
-    amount: 1800,
-    date: "27 Sep 2026",
-    status: "Pending",
-    paymentMethod: "UPI",
-    referenceId: "UPI-928451",
-  },
-  {
-    id: "TXN-003",
-    lotId: "LOT-003",
-    collector: "Sneha More",
-    material: "Cable",
-    weight: 4.8,
-    amount: 950,
-    date: "26 Sep 2026",
-    status: "Paid",
-    paymentMethod: "Bank Transfer",
-    referenceId: "NEFT-483921",
-  },
-  {
-    id: "TXN-004",
-    lotId: "LOT-004",
-    collector: "Vikas Shinde",
-    material: "LCD Panel",
-    weight: 6.4,
-    amount: 3200,
-    date: "25 Sep 2026",
-    status: "Paid",
-    paymentMethod: "UPI",
-    referenceId: "UPI-639214",
-  },
-  {
-    id: "TXN-005",
-    lotId: "LOT-005",
-    collector: "Pooja Jadhav",
-    material: "CRT",
-    weight: 5.1,
-    amount: 1250,
-    date: "24 Sep 2026",
-    status: "Pending",
-    paymentMethod: "UPI",
-    referenceId: "UPI-472816",
-  },
-  {
-    id: "TXN-006",
-    lotId: "LOT-006",
-    collector: "Rahul Pawar",
-    material: "PCB",
-    weight: 3.7,
-    amount: 4100,
-    date: "22 Sep 2026",
-    status: "Paid",
-    paymentMethod: "Bank Transfer",
-    referenceId: "NEFT-718293",
-  },
-  {
-    id: "TXN-007",
-    lotId: "LOT-007",
-    collector: "Neha Kulkarni",
-    material: "Cable",
-    weight: 2.9,
-    amount: 720,
-    date: "20 Sep 2026",
-    status: "Failed",
-    paymentMethod: "UPI",
-    referenceId: "UPI-FAILED-21",
-  },
-  {
-    id: "TXN-008",
-    lotId: "LOT-008",
-    collector: "Suresh Yadav",
-    material: "Battery",
-    weight: 4.3,
-    amount: 2950,
-    date: "18 Sep 2026",
-    status: "Paid",
-    paymentMethod: "UPI",
-    referenceId: "UPI-315827",
-  },
-];
+function mapPaymentStatus(value: unknown): TransactionStatus {
+  const status = String(value || "PENDING").toUpperCase();
+  if (status === "PAID" || status === "RECEIVED") return "Paid";
+  if (status === "FAILED") return "Failed";
+  return "Pending";
+}
+
+function mapApiTransaction(row: Record<string, unknown>): Transaction {
+  const created = row.createdAt || row.created_at;
+  return {
+    id: String(row.id || "TXN"),
+    lotId: String(row.lotNumber || row.lotId || row.lot_id || "—"),
+    collector: String(row.collectorName || row.collector || "Collector"),
+    material: String(row.categoryName || row.category_name || "E-Waste"),
+    weight: Number(row.weightKg ?? row.weight_kg ?? 0),
+    amount: Number(row.finalPrice ?? row.final_price ?? 0),
+    date: created
+      ? new Date(String(created)).toLocaleDateString()
+      : "—",
+    status: mapPaymentStatus(row.paymentStatus ?? row.payment_status),
+    paymentMethod: "Settlement",
+    referenceId: String(row.id || "—"),
+  };
+}
 
 const formatCurrency = (value: number) => {
   return `₹${value.toLocaleString("en-IN")}`;
@@ -131,6 +58,8 @@ const getTransactionDate = (date: string) => {
 
 function Transactions() {
   const [search, setSearch] = useState("");
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadError, setLoadError] = useState("");
 
   const [statusFilter, setStatusFilter] = useState<
     "All" | TransactionStatus
@@ -139,6 +68,24 @@ function Transactions() {
   const [dateFilter, setDateFilter] = useState<
     "All" | "Today" | "This Week" | "This Month"
   >("All");
+
+  useEffect(() => {
+    let active = true;
+    fetchMyTransactions()
+      .then((rows) => {
+        if (!active) return;
+        setTransactions(rows.map(mapApiTransaction));
+        setLoadError("");
+      })
+      .catch(() => {
+        if (!active) return;
+        setTransactions([]);
+        setLoadError("Unable to load transactions from backend.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredTransactions = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
@@ -246,6 +193,10 @@ function Transactions() {
 
   return (
     <section className="page-content transactions-page">
+
+      {loadError ? (
+        <p style={{ color: "#b42318", marginBottom: 12 }}>{loadError}</p>
+      ) : null}
 
       {/* =====================================================
           SUMMARY CARDS

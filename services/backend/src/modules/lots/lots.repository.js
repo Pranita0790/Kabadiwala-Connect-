@@ -388,7 +388,12 @@ async function list(filters = {}, { limit = 25, offset = 0 } = {}) {
     addCondition("l.collector_id = ?", filters.collectorId);
   }
 
-  if (filters.recyclerId) {
+  if (filters.includeUnclaimedForRecycler && filters.recyclerId) {
+    params.push(filters.recyclerId);
+    conditions.push(
+      `(l.recycler_id = $${params.length} OR l.recycler_id IS NULL)`
+    );
+  } else if (filters.recyclerId) {
     addCondition("l.recycler_id = ?", filters.recyclerId);
   }
 

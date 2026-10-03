@@ -27,7 +27,7 @@ class RecyclerRepository {
     ApiService? apiService,
     ConnectivityService? connectivityService,
   })  : _dbService = dbService ?? DatabaseService.instance,
-        _apiService = apiService ?? RemoteApiService(),
+        _apiService = apiService ?? RemoteApiService.instance,
         _connectivityService = connectivityService ?? ConnectivityService.instance;
 
   static String normalizeCategoryId(String? input) {

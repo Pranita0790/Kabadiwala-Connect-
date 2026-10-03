@@ -32,7 +32,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final TextEditingController _cityController = TextEditingController();
 
   final FocusNode _nameFocusNode = FocusNode();
@@ -132,34 +133,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
 
-      // 3. Initiate OTP verification with pending registration data
-      final initiated = await _authController.initiateSignUp(
+      // 3. Create account directly with password (NO OTP / Firebase required)
+      final user = await AuthService.instance.createAccountWithPassword(
         name: name,
-        phoneNumber: rawPhone,
+        rawPhone: rawPhone,
         password: password,
         city: city,
         role: _selectedRole,
       );
 
+      _authController.setCurrentUser(user);
+
       if (!mounted) return;
 
-      if (initiated) {
-        // Navigate to OTP verification screen
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OtpVerificationScreen(
-              phoneNumber: rawPhone,
-              authController: _authController,
-            ),
-          ),
-        );
-      } else {
-        setState(() {
-          _errorMessage = _authController.errorMessage != null
-              ? loc.translate(_authController.errorMessage!)
-              : loc.translate('validMobileError');
-        });
-      }
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -188,7 +175,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         actions: [
           LanguageSelectorMenu(
             controller: LocaleController.instance,
-            onLanguageChanged: widget.onLanguageChanged ?? (l) => LocaleController.instance.setLocale(l),
+            onLanguageChanged: widget.onLanguageChanged ??
+                (l) => LocaleController.instance.setLocale(l),
           ),
           const SizedBox(width: 8),
         ],
@@ -240,7 +228,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: _errorMessage != null ? AppColors.error : AppColors.primary.withAlpha(35),
+                    color: _errorMessage != null
+                        ? AppColors.error
+                        : AppColors.primary.withAlpha(35),
                     width: 1.5,
                   ),
                 ),
@@ -250,22 +240,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // 1. Full Name
-                      _buildFieldLabel(loc.translate('fullName'), Icons.person_rounded),
+                      _buildFieldLabel(
+                          loc.translate('fullName'), Icons.person_rounded),
                       const SizedBox(height: 8),
                       TextField(
                         key: const Key('signup_name_field'),
                         controller: _nameController,
                         focusNode: _nameFocusNode,
                         textCapitalization: TextCapitalization.words,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        decoration: _buildInputDecoration(loc.translate('enterFullName')),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                        decoration: _buildInputDecoration(
+                            loc.translate('enterFullName')),
                         onChanged: (_) => _clearError(),
                       ),
 
                       const SizedBox(height: 16),
 
                       // 2. Mobile Number
-                      _buildFieldLabel(loc.translate('mobileNumber'), Icons.phone_android_rounded),
+                      _buildFieldLabel(loc.translate('mobileNumber'),
+                          Icons.phone_android_rounded),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -275,7 +269,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.background,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: Colors.black12, width: 1.2),
+                              border:
+                                  Border.all(color: Colors.black12, width: 1.2),
                             ),
                             alignment: Alignment.center,
                             child: const Row(
@@ -284,7 +279,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 SizedBox(width: 4),
                                 Text(
                                   '+91',
-                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary),
                                 ),
                               ],
                             ),
@@ -299,8 +297,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 focusNode: _phoneFocusNode,
                                 keyboardType: TextInputType.phone,
                                 maxLength: 10,
-                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                                decoration: _buildInputDecoration(loc.translate('enterMobileNumber')).copyWith(counterText: ''),
+                                style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2),
+                                decoration: _buildInputDecoration(
+                                        loc.translate('enterMobileNumber'))
+                                    .copyWith(counterText: ''),
                                 onChanged: (_) => _clearError(),
                               ),
                             ),
@@ -311,21 +314,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 16),
 
                       // 3. Password
-                      _buildFieldLabel(loc.translate('password'), Icons.lock_outline_rounded),
+                      _buildFieldLabel(loc.translate('password'),
+                          Icons.lock_outline_rounded),
                       const SizedBox(height: 8),
                       TextField(
                         key: const Key('signup_password_field'),
                         controller: _passwordController,
                         focusNode: _passwordFocusNode,
                         obscureText: _obscurePassword,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        decoration: _buildInputDecoration(loc.translate('enterPassword')).copyWith(
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                        decoration: _buildInputDecoration(
+                                loc.translate('enterPassword'))
+                            .copyWith(
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
                               color: Colors.grey.shade600,
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword),
                           ),
                         ),
                         onChanged: (_) => _clearError(),
@@ -334,21 +344,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 16),
 
                       // 4. Confirm Password
-                      _buildFieldLabel(loc.translate('confirmPassword'), Icons.lock_reset_rounded),
+                      _buildFieldLabel(loc.translate('confirmPassword'),
+                          Icons.lock_reset_rounded),
                       const SizedBox(height: 8),
                       TextField(
                         key: const Key('signup_confirm_password_field'),
                         controller: _confirmPasswordController,
                         focusNode: _confirmPasswordFocusNode,
                         obscureText: _obscureConfirmPassword,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        decoration: _buildInputDecoration(loc.translate('enterConfirmPassword')).copyWith(
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                        decoration: _buildInputDecoration(
+                                loc.translate('enterConfirmPassword'))
+                            .copyWith(
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              _obscureConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
                               color: Colors.grey.shade600,
                             ),
-                            onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                            onPressed: () => setState(() =>
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword),
                           ),
                         ),
                         onChanged: (_) => _clearError(),
@@ -357,15 +375,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 16),
 
                       // 5. Area / City
-                      _buildFieldLabel(loc.translate('cityArea'), Icons.location_city_rounded),
+                      _buildFieldLabel(loc.translate('cityArea'),
+                          Icons.location_city_rounded),
                       const SizedBox(height: 8),
                       TextField(
                         key: const Key('signup_city_field'),
                         controller: _cityController,
                         focusNode: _cityFocusNode,
                         textCapitalization: TextCapitalization.words,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        decoration: _buildInputDecoration(loc.translate('enterCityArea')),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                        decoration: _buildInputDecoration(
+                            loc.translate('enterCityArea')),
                         onChanged: (_) => _clearError(),
                       ),
                       const SizedBox(height: 8),
@@ -375,9 +396,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         spacing: 6,
                         runSpacing: 6,
                         children: _suggestedCities.map((cityName) {
-                          final isSelected = _cityController.text.trim().toLowerCase() == cityName.toLowerCase();
+                          final isSelected =
+                              _cityController.text.trim().toLowerCase() ==
+                                  cityName.toLowerCase();
                           return ChoiceChip(
-                            label: Text(cityName, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                            label: Text(cityName,
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal)),
                             selected: isSelected,
                             selectedColor: AppColors.primary.withAlpha(40),
                             onSelected: (selected) {
@@ -390,46 +418,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         }).toList(),
                       ),
 
-                      const SizedBox(height: 16),
-
-                      // 6. Role Selection
-                      _buildFieldLabel(loc.translate('whatDoYouDo'), Icons.work_outline_rounded),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _RoleCard(
-                              title: loc.translate('scrapCollector'),
-                              icon: Icons.recycling_rounded,
-                              isSelected: _selectedRole == 'collector',
-                              onTap: () => setState(() => _selectedRole = 'collector'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _RoleCard(
-                              title: loc.translate('recyclerRole'),
-                              icon: Icons.factory_rounded,
-                              isSelected: _selectedRole == 'recycler',
-                              onTap: () => setState(() => _selectedRole = 'recycler'),
-                            ),
-                          ),
-                        ],
-                      ),
-
                       // Error message if any
                       if (_errorMessage != null) ...[
                         const SizedBox(height: 16),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
                             color: AppColors.error.withAlpha(20),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.error.withAlpha(60)),
+                            border: Border.all(
+                                color: AppColors.error.withAlpha(60)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 18),
+                              const Icon(Icons.error_outline_rounded,
+                                  color: AppColors.error, size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -461,7 +465,49 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 onPressed: _isLoading ? null : _handleCreateAccount,
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+
+              // DEMO ACCOUNT QUICK SIGN-IN BUTTON
+              OutlinedButton.icon(
+                key: const Key('signup_demo_btn'),
+                onPressed: _isLoading
+                    ? null
+                    : () async {
+                        setState(() => _isLoading = true);
+                        await _authController.signInAsDemoUser(
+                          name: _nameController.text.trim().isNotEmpty
+                              ? _nameController.text.trim()
+                              : null,
+                          phone: _phoneController.text.trim().isNotEmpty
+                              ? _phoneController.text.trim()
+                              : null,
+                          city: _cityController.text.trim().isNotEmpty
+                              ? _cityController.text.trim()
+                              : null,
+                        );
+                      },
+                icon: const Icon(Icons.flash_on_rounded,
+                    color: AppColors.secondary, size: 20),
+                label: const Text(
+                  'Quick Demo Access (Skip OTP)',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 52),
+                  side:
+                      const BorderSide(color: AppColors.secondary, width: 1.8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  backgroundColor: AppColors.secondary.withAlpha(20),
+                ),
+              ),
+
+              const SizedBox(height: 12),
 
               // Link to Login
               Row(
@@ -544,58 +590,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: AppColors.primary, width: 2),
-      ),
-    );
-  }
-}
-
-class _RoleCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _RoleCard({
-    required this.title,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withAlpha(25) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.black12,
-            width: isSelected ? 2 : 1.2,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? AppColors.primary : AppColors.textSecondary,
-              size: 26,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                color: isSelected ? AppColors.primary : AppColors.textPrimary,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

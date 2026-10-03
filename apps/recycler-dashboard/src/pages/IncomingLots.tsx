@@ -20,7 +20,10 @@ import { useNavigate } from "react-router-dom";
 
 import type { LotStatus } from "../data/mockLots";
 
-import { getStoredLots } from "../data/lotsStore";
+import {
+  getStoredLots,
+  refreshLotsFromBackend,
+} from "../data/lotsStore";
 
 const statusOptions: Array<"All" | LotStatus> = [
   "All",
@@ -59,6 +62,10 @@ function IncomingLots() {
   ========================== */
 
   useEffect(() => {
+    refreshLotsFromBackend()
+      .then(setLots)
+      .catch(() => setLots(getStoredLots()));
+
     const handleLotsUpdated = () => {
       setLots(getStoredLots());
     };

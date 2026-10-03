@@ -274,7 +274,10 @@ async function list(filters, user) {
   if (user.role === userRole.COLLECTOR) {
     scoped.collectorId = user.id;
   } else if (user.role === userRole.RECYCLER) {
+    // Incoming feed: lots already claimed by this recycler, plus unclaimed
+    // PENDING lots any authorized recycler can accept.
     scoped.recyclerId = scoped.recyclerId || user.recyclerId;
+    scoped.includeUnclaimedForRecycler = true;
   }
 
   return repository.list(scoped, {

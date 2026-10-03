@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/auth/auth_controller.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/localization/locale_controller.dart';
@@ -160,6 +161,33 @@ class AuthLandingScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // QUICK DEMO ACCESS BUTTON
+              OutlinedButton.icon(
+                key: const Key('landing_demo_btn'),
+                onPressed: () async {
+                  await AuthController.instance.signInAsDemoUser();
+                },
+                icon: const Icon(Icons.flash_on_rounded, color: AppColors.secondary, size: 20),
+                label: const Text(
+                  'Quick Demo Access (Explore App & Backend)',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  side: const BorderSide(color: AppColors.secondary, width: 1.8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  backgroundColor: AppColors.secondary.withAlpha(20),
                 ),
               ),
 

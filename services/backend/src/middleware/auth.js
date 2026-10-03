@@ -33,7 +33,7 @@ async function resolveUser(payload) {
     throw new AuthenticationError("Account no longer exists", "ACCOUNT_GONE");
   }
 
-  if (!user.is_active) {
+  if (!user.isActive) {
     throw new AuthenticationError("Account is deactivated", "ACCOUNT_INACTIVE");
   }
 

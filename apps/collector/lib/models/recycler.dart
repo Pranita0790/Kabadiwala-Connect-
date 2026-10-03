@@ -52,25 +52,39 @@ class Recycler {
   }
 
   factory Recycler.fromMap(Map<String, dynamic> map) {
-    final categoriesRaw = map['accepted_categories'] as String? ?? '';
-    final categories = categoriesRaw.isEmpty
-        ? <String>[]
-        : categoriesRaw.split(',').map((e) => e.trim()).toList();
+    List<String> categories;
+    final accepted = map['acceptedCategories'] ?? map['accepted_categories'];
+    if (accepted is List) {
+      categories = accepted.map((e) => e.toString()).toList();
+    } else {
+      final categoriesRaw = accepted?.toString() ?? '';
+      categories = categoriesRaw.isEmpty
+          ? <String>[]
+          : categoriesRaw.split(',').map((e) => e.trim()).toList();
+    }
 
     return Recycler(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      address: map['address'] as String? ?? '',
+      id: map['id'].toString(),
+      name: (map['name'] ?? map['organisationName'] ?? 'Recycler').toString(),
+      address: (map['address'] as String?) ?? '',
       acceptedCategories: categories,
-      distanceKm: (map['distance_km'] as num?)?.toDouble() ?? 0.0,
-      isAuthorized: (map['is_authorized'] == 1 || map['is_authorized'] == true),
-      rating: (map['rating'] as num?)?.toDouble() ?? 4.5,
-      contactPhone: map['contact_phone'] as String?,
-      latitude: (map['latitude'] as num?)?.toDouble() ?? 0.0,
-      longitude: (map['longitude'] as num?)?.toDouble() ?? 0.0,
-      indicativePrice: (map['indicative_price'] as num?)?.toDouble(),
+      distanceKm:
+          ((map['distance_km'] ?? map['distanceKm'] ?? 0.0) as num).toDouble(),
+      isAuthorized: map['is_authorized'] == 1 ||
+          map['is_authorized'] == true ||
+          map['isAuthorized'] == true,
+      rating: ((map['rating'] ?? 4.5) as num).toDouble(),
+      contactPhone:
+          (map['contact_phone'] ?? map['contactPhone']) as String?,
+      latitude: ((map['latitude'] ?? 0.0) as num).toDouble(),
+      longitude: ((map['longitude'] ?? 0.0) as num).toDouble(),
+      indicativePrice:
+          ((map['indicative_price'] ?? map['indicativePrice']) as num?)
+              ?.toDouble(),
       unit: map['unit'] as String? ?? 'kg',
-      isDemo: (map['is_demo'] == 1 || map['is_demo'] == true),
+      isDemo: map['is_demo'] == 1 ||
+          map['is_demo'] == true ||
+          map['isDemo'] == true,
     );
   }
 
