@@ -381,6 +381,16 @@ Critical-mineral identification is rule-based and does not replace laboratory an
 AI performance can vary with image quality, lighting, viewpoint, and material condition.
 Automatic background synchronization is planned for a future release.
 Local Development
+Environment
+
+The whole repo shares a single env file at the root. Create it once:
+
+cp .env.example .env
+
+The backend and the collector app both read it (collector builds with
+`--dart-define-from-file=../../.env`). Fill in PostgreSQL and Firebase values
+as needed. Never commit `.env`.
+
 Backend
 
 From the repository root:

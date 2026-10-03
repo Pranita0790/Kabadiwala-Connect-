@@ -142,7 +142,14 @@ Signing in needs a network; **working** does not.
 
 ## 7. Configuration
 
-### Backend — `services/backend/.env` (see `.env.example`)
+There is **one** env file for the whole repo: `.env` at the repository root
+(copy it from the committed `.env.example`; never commit `.env`).
+
+```bash
+cp .env.example .env
+```
+
+### Backend — reads the root `.env` (via `src/config/env.js`)
 
 ```bash
 FIREBASE_PROJECT_ID=your-project-id   # public; the only Firebase setting needed
@@ -151,7 +158,7 @@ FIREBASE_PROJECT_ID=your-project-id   # public; the only Firebase setting needed
 Unset ⇒ `/api/auth/firebase/sign-in` returns `FIREBASE_NOT_CONFIGURED` (503)
 and `/health/ready` reports `checks.phoneAuth: "disabled"` (non-fatal).
 
-### Collector app — `apps/collector/.env` (see `.env.example`)
+### Collector app — reads the same root `.env`
 
 ```bash
 FIREBASE_API_KEY=
@@ -162,10 +169,11 @@ FIREBASE_APP_ID_ANDROID=
 FIREBASE_APP_ID_IOS=
 ```
 
-Run with:
+Build from the app directory, pointing up at the root file:
 
 ```bash
-flutter run --dart-define-from-file=.env
+cd apps/collector
+flutter run --dart-define-from-file=../../.env
 ```
 
 `lib/firebase_options.dart` reads these via `String.fromEnvironment` and passes
@@ -186,8 +194,8 @@ generates the platform config files.
    `GoogleService-Info.plist`; enable **Push Notifications** and
    **Background Modes → Remote notifications** (silent APNs for automatic
    verification).
-5. Copy the client values into `apps/collector/.env`; set
-   `FIREBASE_PROJECT_ID` on the backend.
+5. Copy the client values into the root `.env`; set `FIREBASE_PROJECT_ID`
+   there too (the backend reads the same file).
 6. Phone Auth requires the **Blaze** plan once the free daily quota is passed.
 
 ---

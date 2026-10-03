@@ -5,9 +5,11 @@
 //
 // 1. ENV FILE (used for local dev and CI — no secrets committed)
 //
-//    Create apps/collector/.env (git-ignored) from .env.example, then run:
+//    The repo has ONE shared env file at the root. Create .env there
+//    (git-ignored) from .env.example, fill in the FIREBASE_* keys, then run
+//    from this directory:
 //
-//      flutter run --dart-define-from-file=.env
+//      flutter run --dart-define-from-file=../../.env
 //
 //    The values below are read with String.fromEnvironment, so they must be
 //    passed as --dart-define / --dart-define-from-file at build time.
@@ -32,8 +34,8 @@
 // Google's public certificates, not this data. It is kept out of Git only to
 // avoid environment mixups between team members.
 //
-// The matching backend setting is FIREBASE_PROJECT_ID — see
-// services/backend/.env.example.
+// The matching backend setting is FIREBASE_PROJECT_ID — see the root
+// .env.example.
 // ============================================================================
 
 import 'package:firebase_core/firebase_core.dart';
@@ -54,8 +56,8 @@ class DefaultFirebaseOptions {
 
   static const String _notConfigured =
       'Firebase is not configured.\n\n'
-      'Set the FIREBASE_* values in apps/collector/.env and build with:\n'
-      '  flutter run --dart-define-from-file=.env\n\n'
+      'Set the FIREBASE_* values in the root .env and build with:\n'
+      '  flutter run --dart-define-from-file=../../.env\n\n'
       'or run `flutterfire configure`. Also set FIREBASE_PROJECT_ID on the '
       'backend so it can verify ID tokens.';
 
@@ -114,8 +116,8 @@ class DefaultFirebaseOptions {
   static String _require(String value, String name) {
     if (value.isEmpty) {
       throw UnsupportedError(
-        'Firebase is missing $name. Add it to apps/collector/.env and build '
-        'with --dart-define-from-file=.env.',
+        'Firebase is missing $name. Add it to the root .env and build '
+        'with --dart-define-from-file=../../.env.',
       );
     }
     return value;

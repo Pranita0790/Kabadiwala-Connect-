@@ -226,3 +226,122 @@ Two shapes are depended on by the deployed dashboard:
 
 Do not "clean these up" without a contract change and a coordinated dashboard
 release.
+
+---
+
+## 7. Rates and prices
+
+Rates are the price board shared by every client.
+
+| Method | Path                  | Auth            | Notes                                      |
+|--------|-----------------------|-----------------|--------------------------------------------|
+| `GET`  | `/api/rates`          | optional        | `{ success, rates[], count }` + `data`.    |
+| `GET`  | `/api/rates/:id`      | optional        | Single rate, `{ success, data }`.          |
+| `GET`  | `/api/rates/:id/history` | optional     | `{ success, data: { history[], count } }`. |
+| `PUT`  | `/api/rates/:id`      | optional (public, see below) | Body `{ ratePerKg }`. **Bare** rate body. |
+
+`/api/prices` is an alias of `/api/rates` (the collector app calls it "prices").
+
+> **`PUT /api/rates/:id` is public today, on purpose.** The deployed Recycler
+> Dashboard edits the board without an `Authorization` header; requiring a token
+> would 401 the live board (AGENTS.md section 5). When the dashboard ships login,
+> this endpoint moves to `requireRole(RECYCLER, ADMIN)`. A token is still
+> accepted when present, so changes are attributed in the audit trail.
+
+---
+
+## 8. Lots
+
+All lot endpoints require a bearer token (`requireAuth`).
+
+| Method  | Path                      | Role            | Notes                                        |
+|---------|---------------------------|-----------------|----------------------------------------------|
+| `POST`  | `/api/lots/sync`          | COLLECTOR, ADMIN| Batch offline sync; idempotent per `clientId`.|
+| `POST`  | `/api/lots`               | COLLECTOR, ADMIN| Create. `201` when newly created.            |
+| `GET`   | `/api/lots`               | any authenticated | `{ success, lots[], count, meta }` + `data`.|
+| `GET`   | `/api/lots/:id`           | any authenticated | `{ success, lot }` + `data`.                |
+| `PATCH` | `/api/lots/:id`           | COLLECTOR, ADMIN| Optimistic concurrency via `version`.        |
+| `PATCH` | `/api/lots/:id/status`    | COLLECTOR, ADMIN| Canonical status transition.                 |
+| `DELETE`| `/api/lots/:id`           | COLLECTOR, ADMIN| Soft delete.                                 |
+| `GET`   | `/api/lots/:id/analyses`  | any authenticated | AI analyses attached to the lot.            |
+| `POST`  | `/api/lots/:id/analysis`  | COLLECTOR, ADMIN| Attach an AI analysis result.               |
+
+Lot payloads are camelCase and also carry the collector's snake_case aliases
+(`lot_id`, `material_type`, …) for backward compatibility.
+
+---
+
+## 9. Traceability
+
+| Method | Path                        | Auth   | Notes                                       |
+|--------|-----------------------------|--------|---------------------------------------------|
+| `GET`  | `/api/traceability`         | public | `{ success, count, records[] }` + `data`.   |
+| `GET`  | `/api/traceability/:lotId`  | public | `{ success, record }` + `data`.             |
+
+Records expose `id`, `material`, `collector`, `weight`, `status` (Title-Cased
+label), and `createdAt`.
+
+> **These reads are public today, on purpose.** The deployed Traceability page
+> fetches anonymously and falls back to `localStorage` on failure.
+> **Privacy trade-off:** records include the collector's full name and collection
+> address. Once the dashboard authenticates, this router must move behind
+> `requireRole(RECYCLER, ADMIN)`.
+
+---
+
+## 10. Notifications and price alerts
+
+Both require a bearer token and return only the caller's own records.
+
+- `/api/notifications` — collector notifications, with read/unread state.
+- `/api/price-alerts` — collector price alerts.
+
+---
+
+## 11. AI gateway
+
+### `POST /api/ai/analyze` — optional auth
+
+`multipart/form-data` with an image file. The backend proxies to the Python AI
+service; the collector never calls the AI service directly (AGENTS.md section 2).
+
+| Part        | Type   | Required | Notes                          |
+|-------------|--------|----------|--------------------------------|
+| `file`      | image  | yes      | `image/*`, size-limited.       |
+| `weight_kg` | number | no       | Optional known weight.         |
+| `lot_id`    | string | no       | Attach the result to a lot.    |
+
+The response is the **raw AI-service body** (snake_case), preserved so the
+deployed collector keeps reading `material` and `confidence`:
+
+```json
+{
+  "material": "pcb",
+  "confidence": 0.95,
+  "critical_mineral": true,
+  "critical_mineral_reason": null,
+  "model_version": "sih-5class-v1",
+  "rule_version": "rules-1",
+  "supported_materials": ["pcb", "battery", "cable", "crt", "lcd_panel"],
+  "weight_estimate": { "estimated_weight_kg": 1.0, "confidence": 0.8, "method": "image" },
+  "value_estimate": { "estimated_value_inr": 448, "confidence": 0.7, "rate_per_kg_inr": 448, "method": "rate_card" }
+}
+```
+
+Error mapping: validation → `422`, upstream timeout → `504`, upstream
+unreachable → `503`, missing file → `400` (`NO_IMAGE`).
+
+AI output is an inference, not proof of elemental composition (AGENTS.md
+section 7); clients must word critical-mineral results as "potential".
+
+---
+
+## 12. Graceful degradation (no database)
+
+The process starts even when `DATABASE_URL` is not configured.
+
+- `/health` (liveness), `/health/live`, and `POST /api/ai/analyze` work without a
+  database.
+- Every other `/api/*` route answers `503` with code `DATABASE_NOT_CONFIGURED`
+  rather than a connection error.
+- `/health/ready` reports `degraded` with per-dependency detail.

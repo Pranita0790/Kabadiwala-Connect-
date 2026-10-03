@@ -1,124 +1,67 @@
-const ratesRoutes = require("./routes/rates.routes");const express = require("express");
-const cors = require("cors");
-
-const lotsRoutes = require("./routes/lots.routes");
-const traceabilityRoutes = require("./routes/traceability.routes");
-const aiRoutes = require("./routes/ai.routes");
-
-const app = express();
-
-const PORT = process.env.PORT || 5000;
-
-
 /*
 |--------------------------------------------------------------------------
-| MIDDLEWARE
+| SERVER BOOTSTRAP
+|--------------------------------------------------------------------------
+| Opens the port and owns process lifecycle. All routing lives in app.js.
+|
+| The process deliberately starts even when no database is configured: a
+| deployment without DATABASE_URL keeps liveness green and serves the AI
+| gateway, while DB-backed routes answer 503 with an actionable message
+| (middleware/require-database.js). Set DATABASE_URL to enable them.
 |--------------------------------------------------------------------------
 */
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5174",
-      "http://localhost:5173",
-      "https://kabadiwala-connect-xi.vercel.app",
-    ],
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+const http = require("node:http");
 
-app.use(express.json());
+const app = require("./app");
+const config = require("./config/env");
+const logger = require("./lib/logger");
+const { closePool } = require("./db/pool");
 
+const server = http.createServer(app);
 
-/*
-|--------------------------------------------------------------------------
-| HEALTH CHECK
-|--------------------------------------------------------------------------
-*/
+function start() {
+  server.listen(config.server.port, config.server.host, () => {
+    logger.info("Kabadiwala backend listening", {
+      port: config.server.port,
+      host: config.server.host,
+      env: config.env,
+      databaseConfigured: config.database.configured,
+    });
 
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    service: "kabadiwala-backend",
-    message: "Backend is running",
-  });
-});
-
-
-/*
-|--------------------------------------------------------------------------
-| API ROUTES
-|--------------------------------------------------------------------------
-*/
-
-app.use(
-  "/api/lots",
-  lotsRoutes
-);
-
-app.use(
-  "/api/traceability",
-  traceabilityRoutes
-);
-
-app.use(
-  "/api/rates",
-  ratesRoutes
-);
-
-app.use(
-  "/api/ai",
-  aiRoutes
-);
-
-
-/*
-|--------------------------------------------------------------------------
-| ROOT
-|--------------------------------------------------------------------------
-*/
-
-app.get("/", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Kabadiwala Connect Backend API",
-    endpoints: {
-      health: "/health",
-      lots: "/api/lots",
-      traceability: "/api/traceability",
-      ai: "/api/ai/analyze",
-    },
-  });
-});
-
-
-/*
-|--------------------------------------------------------------------------
-| 404 HANDLER
-|--------------------------------------------------------------------------
-*/
-
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
-});
-
-
-/*
-|--------------------------------------------------------------------------
-| START SERVER
-|--------------------------------------------------------------------------
-*/
-
-if (require.main === module) {
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(
-      `Kabadiwala backend running on port ${PORT}`
-    );
+    if (!config.database.configured) {
+      logger.warn(
+        "DATABASE_URL is not configured. Database-backed routes will " +
+          "return 503 until it is set and migrations have been run."
+      );
+    }
   });
 }
 
-module.exports = app;
+function shutdown(signal) {
+  logger.info("Shutting down", { signal });
+
+  server.close(async () => {
+    try {
+      await closePool();
+    } catch (error) {
+      logger.error("Error while closing the database pool", {
+        message: error.message,
+      });
+    }
+
+    process.exit(0);
+  });
+
+  // Do not let a hung connection keep the process alive forever.
+  setTimeout(() => process.exit(1), config.server.shutdownTimeoutMs).unref();
+}
+
+if (require.main === module) {
+  start();
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+}
+
+module.exports = { app, server, start, shutdown };

@@ -20,7 +20,7 @@ const path = require("node:path");
 // dotenv's "missing .env" tip from the test output.
 if (process.env.NODE_ENV !== "test") {
   require("dotenv").config({
-    path: path.resolve(__dirname, "../../.env"),
+    path: path.resolve(__dirname, "../../../../.env"),
   });
 }
 
@@ -38,7 +38,7 @@ function required(name) {
   if (!value || value.trim().length === 0) {
     throw new Error(
       `Missing required environment variable: ${name}. ` +
-        `Copy services/backend/.env.example to services/backend/.env.`
+        `Copy .env.example to .env at the repository root.`
     );
   }
 
@@ -120,6 +120,22 @@ if (!jwtSecret) {
   );
 }
 
+/*
+| Whether a database was actually configured. This is deliberately separate
+| from the connection details, which all carry defaults: those defaults would
+| otherwise make an unconfigured deploy look configured and turn every
+| DB-backed route into a connection-refused 500 instead of an honest 503.
+|
+| A value counts as configured if the deploy supplied a connection string or
+| any of the discrete DB_* settings.
+*/
+const databaseConnectionString = optional("DATABASE_URL");
+const databaseConfigured = Boolean(
+  databaseConnectionString ||
+    optional("DB_HOST") ||
+    optional("DB_NAME")
+);
+
 const config = {
   env: nodeEnv,
   isProduction,
@@ -142,7 +158,9 @@ const config = {
   },
 
   database: {
-    connectionString: optional("DATABASE_URL"),
+    // False when no DB_* variable was supplied; see require-database.js.
+    configured: databaseConfigured,
+    connectionString: databaseConnectionString,
     host: optional("DB_HOST", "localhost"),
     port: toInt("DB_PORT", 5432),
     name: optional("DB_NAME", "kabadiwala"),

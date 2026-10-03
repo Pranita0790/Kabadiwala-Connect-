@@ -253,7 +253,7 @@ function normaliseAnalysis(data, latencyMs) {
  * @param {string} params.mimetype
  * @param {number} [params.weightKg]  Improves the value estimate
  */
-async function analyzeMaterial({ fileBuffer, filename, mimetype, weightKg }) {
+async function analyzeMaterialRaw({ fileBuffer, filename, mimetype, weightKg }) {
   // Imported lazily: form-data is only needed on this path, and keeping the
   // require here means the rest of the service does not load it.
   const FormData = require("form-data");
@@ -288,7 +288,16 @@ async function analyzeMaterial({ fileBuffer, filename, mimetype, weightKg }) {
     );
   }
 
-  return normaliseAnalysis(result.data, result.latencyMs);
+  return { raw: result.data, latencyMs: result.latencyMs };
+}
+
+/**
+ * POST /api/v1/analyze, normalised for internal callers.
+ */
+async function analyzeMaterial(params) {
+  const { raw, latencyMs } = await analyzeMaterialRaw(params);
+
+  return normaliseAnalysis(raw, latencyMs);
 }
 
 /**
@@ -336,6 +345,7 @@ async function health() {
 
 module.exports = {
   analyzeMaterial,
+  analyzeMaterialRaw,
   checkCriticalMineral,
   health,
   breakerStatus,

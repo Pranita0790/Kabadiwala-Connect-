@@ -7,7 +7,7 @@ The Collector App connects to the REAL FastAPI AI Service via the Node.js Backen
 `Flutter Collector` -> `Node.js Backend` -> `FastAPI AI Service` -> `MobileNetV3-Small` -> `FastAPI response` -> `Node.js response` -> `Flutter Collector`
 
 ## Files Changed/Created
-1. `services/backend/src/routes/ai.routes.js` (NEW): Node.js Express router serving as the AI proxy.
+1. `services/backend/src/modules/ai/ai.routes.js` (NEW): Node.js Express router serving as the AI proxy (mounted at `/api/ai`; the earlier `src/routes/ai.routes.js` mock was removed).
 2. `services/backend/src/server.js` (MODIFIED): Registered the new `/api/ai` route and updated exports.
 3. `services/backend/package.json` (MODIFIED): Added `multer`, `axios`, and `form-data` dependencies.
 4. `services/backend/tests/ai.routes.test.js` (NEW): Jest unit tests for the Node.js AI proxy.

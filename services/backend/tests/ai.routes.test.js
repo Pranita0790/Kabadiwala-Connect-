@@ -1,137 +1,148 @@
-const request = require('supertest');
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+/*
+|--------------------------------------------------------------------------
+| AI GATEWAY ROUTE
+|--------------------------------------------------------------------------
+| POST /api/ai/analyze is the collector's only route to material
+| classification. The upstream client is mocked so these tests exercise the
+| gateway contract (routing, upload handling, error mapping) without a running
+| FastAPI service or a database.
+|--------------------------------------------------------------------------
+*/
 
-// We test the ai.routes module in isolation with a mock for axios
-// so we don't need the real FastAPI service running.
+const request = require("supertest");
+const express = require("express");
 
-// Mock axios before requiring the route
-jest.mock('axios');
-const axios = require('axios');
+jest.mock("../src/clients/ai-service.client");
+const aiClient = require("../src/clients/ai-service.client");
 
-// Now require the route
-const aiRoutes = require('../src/routes/ai.routes');
+const aiRoutes = require("../src/modules/ai/ai.routes");
+const { errorHandler } = require("../src/middleware/error-handler");
+const {
+  UnprocessableError,
+  UpstreamTimeoutError,
+  UpstreamUnavailableError,
+} = require("../src/lib/errors");
 
-// Build a minimal test app
 function createTestApp() {
   const app = express();
-  app.use('/api/ai', aiRoutes);
+
+  app.use("/api/ai", aiRoutes);
+  app.use(errorHandler);
+
   return app;
 }
 
-// Create a tiny valid JPEG-like buffer for uploads
-const dummyImageBuffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]);
+const dummyImageBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
-describe('POST /api/ai/analyze (Node.js AI Gateway)', () => {
+const mockResponse = {
+  material: "pcb",
+  confidence: 0.95,
+  critical_mineral: true,
+  critical_mineral_reason: null,
+  model_version: "sih-5class-v1",
+  rule_version: "rules-1",
+  supported_materials: ["pcb", "battery", "cable", "crt", "lcd_panel"],
+  weight_estimate: { estimated_weight_kg: 1.0, confidence: 0.8, method: "image" },
+  value_estimate: { estimated_value_inr: 448, confidence: 0.7, rate_per_kg_inr: 448, method: "rate_card" },
+};
 
+describe("POST /api/ai/analyze (backend AI gateway)", () => {
   afterEach(() => {
     jest.resetAllMocks();
   });
 
-  test('returns 400 when no file is uploaded', async () => {
-    const app = createTestApp();
-    const res = await request(app)
-      .post('/api/ai/analyze');
+  test("returns 400 when no file is uploaded", async () => {
+    const res = await request(createTestApp()).post("/api/ai/analyze");
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('No image file provided.');
+    expect(res.body.error).toBe("No image file provided.");
+    expect(aiClient.analyzeMaterialRaw).not.toHaveBeenCalled();
   });
 
-  test('forwards image to FastAPI and returns classification result on success', async () => {
-    const mockResponse = {
-      material: 'pcb',
-      confidence: 0.95,
-      critical_mineral: true,
-      critical_mineral_reason: null,
-      model_version: '1.0',
-      rule_version: '1.0',
-      supported_materials: ['pcb', 'battery', 'cable', 'crt', 'lcd_panel'],
-      weight_estimate: { value: 1.0, unit: 'kg' },
-      value_estimate: { min: 100, max: 200, currency: 'INR' },
-    };
-
-    axios.post.mockResolvedValueOnce({
-      status: 200,
-      data: mockResponse,
+  test("returns the raw FastAPI body on success", async () => {
+    aiClient.analyzeMaterialRaw.mockResolvedValueOnce({
+      raw: mockResponse,
+      latencyMs: 12,
     });
 
-    const app = createTestApp();
-    const res = await request(app)
-      .post('/api/ai/analyze')
-      .attach('file', dummyImageBuffer, 'test.jpg');
+    const res = await request(createTestApp())
+      .post("/api/ai/analyze")
+      .attach("file", dummyImageBuffer, "test.jpg");
 
     expect(res.status).toBe(200);
-    expect(res.body.material).toBe('pcb');
+    // Preserved snake_case engine fields the deployed collector may read.
+    expect(res.body.material).toBe("pcb");
     expect(res.body.confidence).toBe(0.95);
     expect(res.body.critical_mineral).toBe(true);
 
-    // Verify axios was called with the right URL
-    expect(axios.post).toHaveBeenCalledTimes(1);
-    const axiosCallUrl = axios.post.mock.calls[0][0];
-    expect(axiosCallUrl).toContain('/api/v1/analyze');
+    expect(aiClient.analyzeMaterialRaw).toHaveBeenCalledTimes(1);
+    const call = aiClient.analyzeMaterialRaw.mock.calls[0][0];
+    expect(call.mimetype).toBe("image/jpeg");
   });
 
-  test('returns FastAPI error status when AI service responds with non-200', async () => {
-    axios.post.mockResolvedValueOnce({
-      status: 400,
-      data: { detail: 'Only image files are supported.' },
-    });
+  test("maps an upstream validation failure to 422", async () => {
+    aiClient.analyzeMaterialRaw.mockRejectedValueOnce(
+      new UnprocessableError("Only image files are supported.", "AI_ANALYSIS_FAILED")
+    );
 
-    const app = createTestApp();
-    const res = await request(app)
-      .post('/api/ai/analyze')
-      .attach('file', dummyImageBuffer, 'test.jpg');
+    const res = await request(createTestApp())
+      .post("/api/ai/analyze")
+      .attach("file", dummyImageBuffer, "test.jpg");
 
-    expect(res.status).toBe(400);
-    expect(res.body.detail).toBe('Only image files are supported.');
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe("Only image files are supported.");
   });
 
-  test('returns 504 when FastAPI times out', async () => {
-    const timeoutError = new Error('timeout of 15000ms exceeded');
-    timeoutError.code = 'ECONNABORTED';
-    axios.post.mockRejectedValueOnce(timeoutError);
+  test("maps an upstream timeout to 504", async () => {
+    aiClient.analyzeMaterialRaw.mockRejectedValueOnce(
+      new UpstreamTimeoutError()
+    );
 
-    const app = createTestApp();
-    const res = await request(app)
-      .post('/api/ai/analyze')
-      .attach('file', dummyImageBuffer, 'test.jpg');
+    const res = await request(createTestApp())
+      .post("/api/ai/analyze")
+      .attach("file", dummyImageBuffer, "test.jpg");
 
     expect(res.status).toBe(504);
-    expect(res.body.error).toBe('AI service timeout');
   });
 
-  test('returns 500 when FastAPI is unreachable', async () => {
-    const connectionError = new Error('connect ECONNREFUSED 127.0.0.1:8000');
-    connectionError.code = 'ECONNREFUSED';
-    axios.post.mockRejectedValueOnce(connectionError);
+  test("maps an unreachable service to 503", async () => {
+    aiClient.analyzeMaterialRaw.mockRejectedValueOnce(
+      new UpstreamUnavailableError()
+    );
 
-    const app = createTestApp();
-    const res = await request(app)
-      .post('/api/ai/analyze')
-      .attach('file', dummyImageBuffer, 'test.jpg');
+    const res = await request(createTestApp())
+      .post("/api/ai/analyze")
+      .attach("file", dummyImageBuffer, "test.jpg");
 
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe('Failed to communicate with AI service');
+    expect(res.status).toBe(503);
   });
 
-  test('correctly forwards multipart field name "file"', async () => {
-    axios.post.mockResolvedValueOnce({
-      status: 200,
-      data: { material: 'battery', confidence: 0.80 },
+  test("rejects a non-image upload with 422", async () => {
+    const res = await request(createTestApp())
+      .post("/api/ai/analyze")
+      .attach("file", Buffer.from("not an image"), {
+        filename: "notes.txt",
+        contentType: "text/plain",
+      });
+
+    expect(res.status).toBe(422);
+    expect(aiClient.analyzeMaterialRaw).not.toHaveBeenCalled();
+  });
+
+  test("forwards an optional weight to the client", async () => {
+    aiClient.analyzeMaterialRaw.mockResolvedValueOnce({
+      raw: { material: "battery", confidence: 0.8 },
+      latencyMs: 5,
     });
 
-    const app = createTestApp();
-    const res = await request(app)
-      .post('/api/ai/analyze')
-      .attach('file', dummyImageBuffer, 'photo.jpg');
+    const res = await request(createTestApp())
+      .post("/api/ai/analyze")
+      .field("weight_kg", "2.5")
+      .attach("file", dummyImageBuffer, "photo.jpg");
 
     expect(res.status).toBe(200);
 
-    // Check that axios.post received a FormData with the file
-    const axiosCallData = axios.post.mock.calls[0][1];
-    // form-data appends produce a readable stream; verify it was called
-    expect(axiosCallData).toBeDefined();
+    const call = aiClient.analyzeMaterialRaw.mock.calls[0][0];
+    expect(call.weightKg).toBe(2.5);
   });
 });

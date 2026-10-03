@@ -123,8 +123,8 @@ class FirebaseAuthService {
     } catch (error) {
       developer.log(
         'Firebase initialisation failed. Phone sign-in is unavailable. '
-        'Set FIREBASE_* in apps/collector/.env and build with '
-        '--dart-define-from-file=.env, or run `flutterfire configure`.',
+        'Set FIREBASE_* in the root .env and build with '
+        '--dart-define-from-file=../../.env, or run `flutterfire configure`.',
         name: 'collector.firebase',
         error: error,
       );

@@ -27,9 +27,8 @@ const service = require("./rates.service");
 const schemas = require("./rates.schema");
 const asyncHandler = require("../../lib/async-handler");
 const { sendSuccess, sendResource, sendBare } = require("../../lib/response");
-const { requireAuth, requireRole } = require("../../middleware/auth");
+const { requireAuth, optionalAuth } = require("../../middleware/auth");
 const { validate, validatedQuery } = require("../../middleware/validate");
-const { userRole } = require("../../config/constants");
 
 const router = express.Router();
 
@@ -86,18 +85,26 @@ router.get(
 
 /*
 |--------------------------------------------------------------------------
-| WRITE — recycler or admin
+| WRITE
 |--------------------------------------------------------------------------
-| Publishing a rate is a market claim, so it is not something a collector
-| account can do.
+| Publishing a rate is a market claim, so once the dashboard authenticates
+| this must be restricted to a recycler or admin (requireRole).
 |--------------------------------------------------------------------------
-*/
-
-// PUT /api/rates/:id
+|
+| PUT /api/rates/:id
+|
+| PUBLIC, for now, and on purpose. The deployed Recycler Dashboard edits the
+| rate board with a PUT that carries no Authorization header; requiring a
+| token here would return 401 and break the live board (AGENTS.md section 5).
+| The alternative — a dashboard release that logs in first — is the correct
+| end state, at which point this becomes requireRole(RECYCLER, ADMIN).
+|
+| optionalAuth is kept so that, when a caller DOES send a token, the rate
+| change is attributed to them in the audit trail instead of to null.
+|--------------------------------------------------------------------------*/
 router.put(
   "/:id",
-  requireAuth(),
-  requireRole(userRole.RECYCLER, userRole.ADMIN),
+  optionalAuth(),
   validate(schemas.byId),
   validate(schemas.updateRate),
   asyncHandler(async (req, res) => {
@@ -106,7 +113,7 @@ router.put(
     const { rate, priceAlertsTriggered } = await service.updateRate({
       publicId: req.params.id,
       ratePerKg,
-      actorId: req.user.id,
+      actorId: req.user?.id ?? null,
       source,
     });
 
