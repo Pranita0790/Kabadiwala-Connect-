@@ -15,17 +15,22 @@ class TransactionCard extends StatelessWidget {
     final isPaid = transaction.paymentStatus.toUpperCase() == 'PAID' ||
         transaction.paymentStatus.toUpperCase() == 'RECEIVED';
 
-    return Card(
-      elevation: 2,
+    return Container(
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 2.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: isPaid
-              ? AppColors.syncSuccess.withValues(alpha: 0.3)
-              : AppColors.syncPending.withValues(alpha: 0.3),
-          width: 1.2,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.cardBorder,
+          width: 1.5,
         ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120B2E21),
+            blurRadius: 14,
+            offset: Offset(0, 5),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),

@@ -245,14 +245,6 @@ import {
   
           <div>
   
-            <p className="breadcrumb">
-              Recycler Portal / Rate Board
-            </p>
-  
-            <h2>
-              Rate Board
-            </h2>
-  
             <p>
               Manage current material rates used
               for valuation and recycler transactions.
@@ -655,8 +647,8 @@ import {
           <CircleDollarSign size={18} />
   
           <p>
-            Rate Board values are used as reference
-            rates for material valuation. Final settlement
+            Rate Board values serve as reference prices
+            for material valuation. Final settlement
             may depend on material condition, quality,
             weight verification and recycler approval.
           </p>

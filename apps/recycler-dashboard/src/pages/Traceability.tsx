@@ -227,12 +227,6 @@ function TraceabilityDetail({
     <section className="page-content traceability-page">
       <div className="page-heading">
         <div>
-          <p className="breadcrumb">
-            Recycler Portal / Traceability / Lot Journey
-          </p>
-
-          <h2>Lot Journey</h2>
-
           <p>
             Complete traceability record for collected material.
           </p>
@@ -452,16 +446,9 @@ function TraceabilityList({
     <section className="page-content traceability-page">
       <div className="page-heading">
         <div>
-          <p className="breadcrumb">
-            Recycler Portal / Traceability
-          </p>
-
-          <h2>Traceability</h2>
-
           <p>
-            Track the journey of collected material from
-            collection through verification, handover,
-            processing and completion.
+            Track the material journey from initial registration through
+            verification, handover, processing, and completion.
           </p>
         </div>
       </div>

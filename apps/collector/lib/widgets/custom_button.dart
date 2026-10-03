@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/constants/app_colors.dart';
 
 class CustomButton extends StatelessWidget {
   final String label;
@@ -18,29 +19,68 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = isSecondary
-        ? OutlinedButton.styleFrom(
-            minimumSize: const Size(64, 52),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-          )
-        : ElevatedButton.styleFrom(
-            minimumSize: const Size(64, 56),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          );
-
     if (isSecondary) {
-      return OutlinedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: style,
-        child: _buildContent(compact: true),
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12134233),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: OutlinedButton(
+          onPressed: isLoading ? null : onPressed,
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(64, 52),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            foregroundColor: AppColors.primary,
+            side: const BorderSide(color: AppColors.cardBorder, width: 1.5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            backgroundColor: Colors.white,
+            elevation: 0,
+          ),
+          child: _buildContent(compact: true),
+        ),
       );
     }
-    return ElevatedButton(
-      onPressed: isLoading ? null : onPressed,
-      style: style,
-      child: _buildContent(compact: false),
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x38134233),
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Color(0x14134233),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(64, 56),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 0.3),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          elevation: 0,
+        ),
+        child: _buildContent(compact: false),
+      ),
     );
   }
 

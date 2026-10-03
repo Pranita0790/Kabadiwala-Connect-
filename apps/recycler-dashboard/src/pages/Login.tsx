@@ -1,5 +1,17 @@
 import { FormEvent, useState } from "react";
-import { Building2, Lock, Phone, Recycle } from "lucide-react";
+import {
+  BatteryCharging,
+  Building2,
+  Cpu,
+  Laptop,
+  Leaf,
+  Lock,
+  Phone,
+  Recycle,
+  Smartphone,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { loginWithPassword } from "../lib/api";
 
 type LoginProps = {
@@ -39,10 +51,35 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
   return (
     <div className="auth-shell">
       <div className="auth-hero">
-        <div className="auth-hero-badge">
-          <Recycle size={28} />
+        {/* Floating 3D Clay Objects & Capsules */}
+        <div className="clay-floating-pill clay-float-phone" aria-hidden="true">
+          <Smartphone size={16} />
+          <span>Old phone</span>
         </div>
-        <h1>Formal recycling, quietly run.</h1>
+        <div className="clay-floating-pill clay-float-battery" aria-hidden="true">
+          <BatteryCharging size={16} />
+          <span>Battery</span>
+        </div>
+        <div className="clay-floating-pill clay-float-laptop" aria-hidden="true">
+          <Laptop size={16} />
+          <span>Laptop</span>
+        </div>
+        <div className="clay-floating-pill clay-float-circuit" aria-hidden="true">
+          <Cpu size={16} />
+          <span>Circuit board</span>
+        </div>
+        <div className="clay-floating-pill clay-float-charger" aria-hidden="true">
+          <Zap size={16} />
+          <span>Charger</span>
+        </div>
+
+        <div className="auth-hero-badge">
+          <Recycle size={32} />
+        </div>
+        <h1>
+          Formal recycling, <br />
+          <em>quietly run.</em>
+        </h1>
         <p>
           One portal for incoming lots, QR handover, settlement, and rate
           intelligence — built for authorised recyclers.

@@ -44,7 +44,6 @@ export default function VerificationHub() {
     <section className="page-content verification-hub">
       <div className="page-toolbar">
         <div>
-          <h3>Handover verification</h3>
           <p>
             Confirm physical delivery for accepted lots. Ask the collector for
             the 6-digit PIN from the app, then complete verification to move a

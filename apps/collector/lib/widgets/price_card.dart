@@ -74,15 +74,27 @@ class _PriceCardState extends State<PriceCard> {
     final localizedName = widget.price.getLocalizedName(widget.currentLanguage);
     final rangeText = Formatters.priceRange(widget.price.minPrice, widget.price.maxPrice);
 
-    return Card(
-      elevation: 3,
+    return Container(
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.withValues(alpha: 0.15), width: 1),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.cardBorder, width: 1.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14134233),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Color(0x08134233),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(18.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -92,11 +104,23 @@ class _PriceCardState extends State<PriceCard> {
               children: [
                 // Icon Avatar
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14134233),
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     _getCategoryIcon(widget.price.iconAsset),
@@ -115,8 +139,8 @@ class _PriceCardState extends State<PriceCard> {
                         localizedName,
                         style: const TextStyle(
                           fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -124,7 +148,7 @@ class _PriceCardState extends State<PriceCard> {
                         '$rangeText / ${widget.price.unit}',
                         style: const TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w900,
                           color: AppColors.primary,
                         ),
                       ),
@@ -135,7 +159,7 @@ class _PriceCardState extends State<PriceCard> {
             ),
 
             const SizedBox(height: 12),
-            const Divider(height: 1),
+            const Divider(height: 1, color: Color(0xFFE2ECE5)),
             const SizedBox(height: 12),
 
             // Metadata Row: Location, Source & Last Updated

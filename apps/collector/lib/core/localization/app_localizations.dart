@@ -629,7 +629,7 @@ class AppLocalizations {
       'accountAlreadyExists': 'इस मोबाइल नंबर वाला खाता पहले से मौजूद है। कृपया लॉगिन करें।',
       'invalidCredentialsError': 'मोबाइल नंबर या पासवर्ड गलत है।',
       'authBackendUnreachable':
-          'लैपटॉप बैकएंड नहीं मिला। एक ही Wi‑Fi? Windows Firewall में पोर्ट 5000 खोलें (scripts/allow-lan-ports.ps1 Admin से चलाएँ)।',
+          'लैपटॉप बैकएंड नहीं मिला। एक ही Wi‑Fi? Windows Firewall में पोर्ट 5001 खोलें (scripts/allow-lan-ports.ps1 Admin से चलाएँ)।',
       'authErrorNetwork': 'इंटरनेट नहीं है। कनेक्ट करके पुनः प्रयास करें।',
       'authErrorInvalidNumber': 'सही 10 अंकों का भारतीय मोबाइल नंबर डालें।',
       'authErrorSendFailed': 'एसएमएस नहीं भेजा जा सका। नंबर जाँचें और पुनः प्रयास करें।',
@@ -949,7 +949,7 @@ class AppLocalizations {
       'accountAlreadyExists': 'या मोबाइल नंबरचे खाते आधीपासून अस्तित्वात आहे. कृपया लॉगिन करा.',
       'invalidCredentialsError': 'मोबाइल नंबर किंवा पासवर्ड चुकीचा आहे.',
       'authBackendUnreachable':
-          'लॅपटॉप बॅकएंड मिळाले नाही. एकच Wi‑Fi? Windows Firewall मध्ये पोर्ट 5000 उघडा (scripts/allow-lan-ports.ps1 Admin ने चालवा).',
+          'लॅपटॉप बॅकएंड मिळाले नाही. एकच Wi‑Fi? Windows Firewall मध्ये पोर्ट 5001 उघडा (scripts/allow-lan-ports.ps1 Admin ने चालवा).',
       'authErrorNetwork': 'इंटरनेट नाही. कनेक्ट करून पुन्हा प्रयत्न करा.',
       'authErrorInvalidNumber': 'योग्य 10 अंकी भारतीय मोबाइल नंबर टाका.',
       'authErrorSendFailed': 'एसएमएस पाठवता आला नाही. नंबर तपासून पुन्हा प्रयत्न करा.',

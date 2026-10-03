@@ -14,6 +14,24 @@ class AppConstants {
   static String get apiBaseUrl =>
       apiBaseUrlOverride.isEmpty ? '$backendBaseUrl/api' : apiBaseUrlOverride;
 
+  static const String mapTilerApiKey = String.fromEnvironment(
+    'MAPTILER_API_KEY',
+    defaultValue: 'FD3r2uqNKjpGbL5UHaFm',
+  );
+
+  static const String mapTilerTileUrl =
+      'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$mapTilerApiKey';
+
+  static String mapTilerStaticMapUrl({
+    double lat = 18.5204,
+    double lng = 73.8567,
+    int zoom = 12,
+    int width = 800,
+    int height = 800,
+  }) {
+    return 'https://api.maptiler.com/maps/streets-v2/static/$lng,$lat,$zoom/${width}x$height.png?key=$mapTilerApiKey';
+  }
+
   static const String appVersion = '1.0.0';
 
   static const String logoAsset = 'assets/images/kabadiwala_connect_logo.png';
