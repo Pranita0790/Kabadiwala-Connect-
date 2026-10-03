@@ -2,8 +2,11 @@ class AppConstants {
 
   static const String appName = 'Kabadiwala Connect';
 
-  static const String apiBaseUrl =
-      'https://kabadiwala-backend-69wr.onrender.com/api';
+  /// Backend origin without a trailing slash.
+  static const String apiHost = 'https://kabadiwala-backend-69wr.onrender.com';
+
+  /// Backend REST root, including the `/api` prefix.
+  static const String apiBaseUrl = '$apiHost/api';
 
   static const String appVersion = '1.0.0';
 

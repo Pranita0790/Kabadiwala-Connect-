@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/constants/app_constants.dart';
 import '../../models/user_profile.dart';
 import '../../services/auth_service.dart';
+import '../../services/backend_api_client.dart';
 import '../../services/collector_auth_service.dart';
 import '../../services/firebase_auth_service.dart';
 
@@ -34,6 +35,7 @@ class AuthController extends ChangeNotifier {
   final FirebaseAuthService _firebaseAuth;
   final SessionStore _sessionStore;
   final CollectorAuthService _collectorAuth;
+  final BackendApiClient _backend;
 
   UserProfile? _currentUser;
   bool _isInitialized = false;
@@ -58,9 +60,11 @@ class AuthController extends ChangeNotifier {
     FirebaseAuthService? firebaseAuth,
     SessionStore? sessionStore,
     CollectorAuthService? collectorAuth,
+    BackendApiClient? backendClient,
   })  : _authService = authService ?? AuthService.instance,
         _firebaseAuth = firebaseAuth ?? FirebaseAuthService(),
         _sessionStore = sessionStore ?? SessionStore(),
+        _backend = backendClient ?? BackendApiClient.instance,
         _collectorAuth = collectorAuth ??
             CollectorAuthService(
               apiBaseUrl: AppConstants.apiBaseUrl,
@@ -135,10 +139,21 @@ class AuthController extends ChangeNotifier {
        | the collector never completed their details. Keep them in the app so
        | they can finish rather than bouncing to sign-in.
        */
-      if (_currentUser == null && await _sessionStore.hasSession()) {
-        final session = await _sessionStore.read();
+      final savedSession = await _sessionStore.read();
 
-        if (session != null && session.needsProfile) {
+      // Seed the shared HTTP client from the stored session, but never
+      // clobber tokens it has already rotated: after a `/auth/refresh` the
+      // dedicated token rows are newer than the session blob.
+      await _backend.loadTokens();
+      if (!_backend.hasToken && savedSession != null) {
+        await _backend.saveTokens(
+          accessToken: savedSession.accessToken,
+          refreshToken: savedSession.refreshToken,
+        );
+      }
+
+      if (_currentUser == null && savedSession != null) {
+        if (savedSession.needsProfile) {
           /*
            | Deliberately incomplete rather than a demo profile: the real
            | name and city are unknown until the collector supplies them, and
@@ -150,7 +165,7 @@ class AuthController extends ChangeNotifier {
             phoneNumber: '',
             city: '',
             isProfileComplete: false,
-            backendUserId: session.userId,
+            backendUserId: savedSession.userId,
           );
         }
       }
@@ -210,7 +225,7 @@ class AuthController extends ChangeNotifier {
       final normalised = normaliseIndianPhone(phoneNumber);
 
       if (normalised == null) {
-        _errorMessage = 'invalidPhoneLength';
+        _errorMessage = 'authErrorInvalidNumber';
         return false;
       }
 
@@ -295,6 +310,13 @@ class AuthController extends ChangeNotifier {
       );
 
       final session = exchange.session;
+
+      // Hand the fresh backend session to the shared HTTP client so the
+      // data endpoints (prices, lots) can authenticate immediately.
+      await _backend.saveTokens(
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      );
 
       _currentUser = await _authService.completeUserProfile(
         phoneNumber: phoneNumber ?? _pendingPhoneNumber!,
@@ -404,6 +426,7 @@ class AuthController extends ChangeNotifier {
     try {
       await _firebaseAuth.signOut();
       await _collectorAuth.signOut();
+      await _backend.clearTokens();
       await _authService.logout();
     } catch (error) {
       developer.log('Sign-out did not complete cleanly', name: 'collector.auth', error: error);

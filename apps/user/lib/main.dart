@@ -17,6 +17,7 @@ import 'screens/home/home_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/profile/edit_profile_screen.dart';
+import 'services/sync_service.dart';
 import 'screens/kabadiwala/find_kabadiwala_screen.dart';
 import 'screens/kabadiwala/nearby_vendors_screen.dart';
 import 'screens/kabadiwala/vendor_details_screen.dart';
@@ -43,6 +44,10 @@ void main() async {
 
   final authController = AuthController.instance;
   await authController.initialize();
+
+  // Start the offline-first sync pipeline: locally created lots with
+  // PENDING_SYNC are uploaded to the backend whenever connectivity returns.
+  SyncService.getInstance();
 
   runApp(KabadiwalaConnectUserApp(
     localeController: localeController,
