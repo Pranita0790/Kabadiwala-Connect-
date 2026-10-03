@@ -1,0 +1,40 @@
+name: kabadiwala_connect_user
+description: "User/Customer-facing mobile app for SIH26229 Kabadiwala Connect - Bringing informal e-waste collectors into the formal recycling chain."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.3
+  sqflite: ^2.3.2
+  path_provider: ^2.1.2
+  path: ^1.9.0
+  provider: ^6.1.2
+  image_picker: ^1.0.7
+  flutter_tts: ^4.0.2
+  connectivity_plus: ^6.0.3
+  uuid: ^4.3.3
+  cupertino_icons: ^1.0.8
+  sqflite_common_ffi: ^2.3.2
+  qr_flutter: ^4.1.0
+  http: ^1.6.0
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/images/
+    - assets/images/kabadiwala_connect_logo.png
