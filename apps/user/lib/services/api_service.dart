@@ -96,7 +96,7 @@ class ApiService {
   );
 
   static const String _cloudRoot =
-      'https://kabadiwala-backend-69wr.onrender.com';
+      'https://kabadiwala-backend-chd4.onrender.com';
 
   /// Last base that answered (kept for the process lifetime).
   static String? _activeApiBase;

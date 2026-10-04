@@ -2,7 +2,7 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL ??
   (import.meta.env.DEV
     ? "http://127.0.0.1:5000/api"
-    : "https://kabadiwala-backend-69wr.onrender.com/api");
+    : "https://kabadiwala-backend-chd4.onrender.com/api");
 
 export async function runAiRecyclerAudit(lotData: {
   id?: string;
@@ -167,7 +167,7 @@ export async function apiFetch<T = unknown>(
     });
   } catch {
     throw new Error(
-      "Cannot reach backend. Confirm Render is up: https://kabadiwala-backend-69wr.onrender.com/health/live"
+      "Cannot reach backend. Confirm Render is up: https://kabadiwala-backend-chd4.onrender.com/health/live"
     );
   }
 

@@ -5,7 +5,7 @@ class AppConstants {
   /// `--dart-define=BACKEND_URL=http://10.0.2.2:5000`.
   static const String backendBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'https://kabadiwala-backend-69wr.onrender.com',
+    defaultValue: 'https://kabadiwala-backend-chd4.onrender.com',
   );
 
   static const String apiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');

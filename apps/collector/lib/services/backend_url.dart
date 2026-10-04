@@ -17,7 +17,7 @@ class BackendUrl {
 
   /// Cloud API — keep in sync with docs/architecture/render-backend.md
   static const String productionRoot =
-      'https://kabadiwala-backend-69wr.onrender.com';
+      'https://kabadiwala-backend-chd4.onrender.com';
 
   static const String _override = String.fromEnvironment('BACKEND_URL');
   static const String _lan = String.fromEnvironment('LAN_BACKEND_URL');

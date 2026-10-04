@@ -6,10 +6,10 @@ Local LAN IPs (`10.x`, `adb reverse`) are optional for developers only.
 ## Production URL
 
 ```
-https://kabadiwala-backend-69wr.onrender.com
+https://kabadiwala-backend-chd4.onrender.com
 ```
 
-API base: `https://kabadiwala-backend-69wr.onrender.com/api`
+API base: `https://kabadiwala-backend-chd4.onrender.com/api`
 
 Free-tier services **sleep** after idle time. The first request after sleep
 can take 30–60s; the Flutter app probes Render with a long timeout.
@@ -42,8 +42,8 @@ npm run seed
 7. Verify:
 
 ```bash
-curl -sS https://kabadiwala-backend-69wr.onrender.com/health/live
-curl -sS -X POST https://kabadiwala-backend-69wr.onrender.com/api/ai/copilot \
+curl -sS https://kabadiwala-backend-chd4.onrender.com/health/live
+curl -sS -X POST https://kabadiwala-backend-chd4.onrender.com/api/ai/copilot \
   -H "Content-Type: application/json" \
   -d "{\"message\":\"silver\",\"language\":\"en\"}"
 ```
@@ -71,7 +71,7 @@ Or Profile → Server URL in the app.
 
 ```bash
 # apps/recycler-dashboard/.env.local
-VITE_API_BASE_URL=https://kabadiwala-backend-69wr.onrender.com/api
+VITE_API_BASE_URL=https://kabadiwala-backend-chd4.onrender.com/api
 ```
 
 ## Architecture note

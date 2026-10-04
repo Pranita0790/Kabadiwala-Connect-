@@ -294,7 +294,7 @@ Backend API
 
 The deployed backend is available at:
 
-https://kabadiwala-backend-69wr.onrender.com/api
+https://kabadiwala-backend-chd4.onrender.com/api
 
 Deploy / env checklist: `docs/architecture/render-backend.md`  
 Blueprint file: `render.yaml` (Render → New → Blueprint).

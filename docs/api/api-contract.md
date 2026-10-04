@@ -4,7 +4,7 @@ The backend is the primary gateway (AGENTS.md section 2). The collector app and
 the recycler dashboard talk only to this API; neither talks to the AI service or
 Firebase directly for anything it should not.
 
-Base URL (production): `https://kabadiwala-backend-69wr.onrender.com/api`
+Base URL (production): `https://kabadiwala-backend-chd4.onrender.com/api`
 
 This document is the shared contract. Changing a path, field, status value, or
 authentication requirement here requires updating this file first and coordinating
