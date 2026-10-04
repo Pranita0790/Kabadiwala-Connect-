@@ -174,7 +174,10 @@ class KabadiwalaConnectApp extends StatelessWidget {
               case '/auth-landing':
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => const AuthLandingScreen(),
+                  builder: (context) => LoginScreen(
+                    authController: auth,
+                    onLanguageChanged: controller.setLocale,
+                  ),
                 );
               case '/login':
                 return MaterialPageRoute(
@@ -439,7 +442,10 @@ class AuthGate extends StatelessWidget {
             authController: auth,
           );
         }
-        return const AuthLandingScreen();
+        return LoginScreen(
+          authController: auth,
+          onLanguageChanged: controller.setLocale,
+        );
       },
     );
   }

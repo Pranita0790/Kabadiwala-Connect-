@@ -93,6 +93,25 @@ class RemoteAiClassificationService implements AiClassificationService {
                   if (text.isNotEmpty) suggestions.add(text);
                 }
               }
+              final valueEstimate = jsonResult['value_estimate'] as Map<String, dynamic>?;
+              final estimatedValueInr = (valueEstimate?['estimated_value_inr'] as num?)?.toInt();
+              final ratePerKgInr = (valueEstimate?['rate_per_kg_inr'] as num?)?.toInt();
+              final rateRange = valueEstimate?['rate_range'] as String?;
+
+              final detectedMinerals = <String>[];
+              final rawMinerals = jsonResult['detected_minerals'];
+              if (rawMinerals is List) {
+                for (final m in rawMinerals) {
+                  final text = m.toString().trim();
+                  if (text.isNotEmpty) detectedMinerals.add(text);
+                }
+              }
+
+              final greenImpact = jsonResult['green_impact'] as Map<String, dynamic>?;
+              final eprCredits = (greenImpact?['epr_credits'] as num?)?.toInt();
+              final co2SavedKg = (greenImpact?['co2_saved_kg'] as num?)?.toDouble();
+              final negotiationTip = jsonResult['negotiation_tip'] as String?;
+
               return ClassificationResult(
                 categoryId: mappedId,
                 categoryName: categoryLabel ?? material,
@@ -105,6 +124,13 @@ class RemoteAiClassificationService implements AiClassificationService {
                 electronicDevice: electronicDevice,
                 shortDescription: shortDescription,
                 suggestions: suggestions,
+                estimatedValueInr: estimatedValueInr,
+                ratePerKgInr: ratePerKgInr,
+                rateRange: rateRange,
+                detectedMinerals: detectedMinerals,
+                eprCredits: eprCredits,
+                co2SavedKg: co2SavedKg,
+                negotiationTip: negotiationTip,
               );
             }
           } else {

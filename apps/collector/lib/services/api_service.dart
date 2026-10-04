@@ -14,6 +14,7 @@ import '../models/collector_rate.dart';
 import 'session_store.dart';
 import 'backend_url.dart';
 import 'lot_valuation.dart' as lot_valuation;
+import '../data/mpcb_recyclers_directory.dart';
 
 /// Generic response wrapper for backend operations.
 class ApiResponse<T> {
@@ -318,76 +319,12 @@ class MockApiService implements ApiService {
       await Future.delayed(delay);
     }
     if (shouldSucceed) {
-      final mockRecyclers = [
-        const Recycler(
-          id: 'rec_01',
-          name: 'EcoRecycle Maharashtra',
-          address: 'Plot 42, MIDC Hingna Industrial Area, Nagpur',
-          acceptedCategories: ['pcb', 'copper_wire', 'battery', 'display', 'appliances', 'mixed'],
-          distanceKm: 2.4,
-          isAuthorized: true,
-          rating: 4.8,
-          contactPhone: '+91 98230 11223',
-          latitude: 21.1458,
-          longitude: 79.0882,
-          indicativePrice: 320.0,
-          unit: 'kg',
-          isDemo: true,
-        ),
-        const Recycler(
-          id: 'rec_02',
-          name: 'GreenEarth Formal Dismantlers',
-          address: 'Sector 8, Butibori Industrial Estate, Nagpur',
-          acceptedCategories: ['pcb', 'copper_wire', 'display', 'mixed'],
-          distanceKm: 4.8,
-          isAuthorized: true,
-          rating: 4.6,
-          contactPhone: '+91 94221 44556',
-          latitude: 21.1120,
-          longitude: 79.0510,
-          indicativePrice: 310.0,
-          unit: 'kg',
-          isDemo: true,
-        ),
-        const Recycler(
-          id: 'rec_03',
-          name: 'Central India Metal Refiners',
-          address: 'Ghat Road, Cotton Market Yard, Nagpur',
-          acceptedCategories: ['copper_wire', 'battery', 'appliances'],
-          distanceKm: 7.2,
-          isAuthorized: true,
-          rating: 4.3,
-          contactPhone: '+91 98900 77889',
-          latitude: 21.1680,
-          longitude: 79.1120,
-          indicativePrice: 620.0,
-          unit: 'kg',
-          isDemo: true,
-        ),
-        const Recycler(
-          id: 'rec_04',
-          name: 'Vidarbha Safe E-Waste Center',
-          address: 'Near Old Toll Plaza, Kamptee Road, Nagpur',
-          acceptedCategories: ['pcb', 'battery', 'display'],
-          distanceKm: 9.5,
-          isAuthorized: false,
-          rating: 4.0,
-          contactPhone: '+91 97654 33221',
-          latitude: 21.2010,
-          longitude: 79.1350,
-          indicativePrice: 280.0,
-          unit: 'kg',
-          isDemo: true,
-        ),
-      ];
-
-      if (categoryId != null && categoryId.isNotEmpty && categoryId != 'all') {
-        final filtered = mockRecyclers.where((r) =>
-            r.acceptedCategories.contains(categoryId) ||
-            r.acceptedCategories.contains('mixed')).toList();
-        return ApiResponse.success(filtered);
-      }
-      return ApiResponse.success(mockRecyclers);
+      final list = MpcbRecyclersDirectory.getMatchedRecyclers(
+        collectorLat: 18.6272,
+        collectorLng: 73.8344,
+        categoryId: categoryId,
+      );
+      return ApiResponse.success(list);
     } else {
       return ApiResponse.failure('Failed to fetch recyclers', statusCode: 503);
     }
@@ -708,6 +645,7 @@ class RemoteApiService implements ApiService {
     required String password,
   }) async {
     try {
+      await BackendUrl.resolve(client: _client);
       final uri = Uri.parse('$baseUrl/auth/login');
       final response = await _client
           .post(
@@ -754,6 +692,7 @@ class RemoteApiService implements ApiService {
     required String password,
   }) async {
     try {
+      await BackendUrl.resolve(client: _client);
       final uri = Uri.parse('$baseUrl/auth/register');
       final response = await _client
           .post(

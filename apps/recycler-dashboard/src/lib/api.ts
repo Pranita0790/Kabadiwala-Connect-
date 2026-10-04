@@ -1,6 +1,39 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ??
-  "http://10.1.106.69:5000/api";
+  `http://${typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost"}:5001/api`;
+
+export async function runAiRecyclerAudit(lotData: {
+  id?: string;
+  material?: string;
+  weight_kg?: number;
+}) {
+  const result = await apiFetch<{
+    success: boolean;
+    data: {
+      lot_id: string;
+      purity_grade: string;
+      purity_percentage: number;
+      critical_minerals_recovery: Array<{
+        mineral: string;
+        estimated_recovery_grams: number;
+        market_grade: string;
+      }>;
+      epr_compliance: {
+        status: string;
+        epr_certificate_eligible: boolean;
+        estimated_credits: number;
+        co2_avoided_kg: number;
+        circular_economy_score: number;
+      };
+      handling_safety_audit: string[];
+    };
+  }>("/ai/recycler-audit", {
+    method: "POST",
+    body: JSON.stringify(lotData),
+  });
+
+  return result.data?.data;
+}
 
 const TOKEN_KEY = "kabadiwala-access-token";
 const REFRESH_KEY = "kabadiwala-refresh-token";

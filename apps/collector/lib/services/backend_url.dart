@@ -18,7 +18,7 @@ class BackendUrl {
   static const String _override = String.fromEnvironment('BACKEND_URL');
   static const String _lan = String.fromEnvironment(
     'LAN_BACKEND_URL',
-    defaultValue: 'http://10.1.106.69:5000',
+    defaultValue: 'http://10.1.121.20:5001',
   );
 
   static String _strip(String url) {
@@ -43,14 +43,16 @@ class BackendUrl {
       if (!out.contains(v)) out.add(v);
     }
 
-    // Prefer LAN for a real phone on Wi‑Fi. Loopback only works with adb reverse.
     add(_override);
     if (_savedRoot != null && !_isLoopback(_savedRoot!)) {
       add(_savedRoot!);
     }
+    add('http://127.0.0.1:5001');
+    add('http://10.1.121.20:5001');
     add(_lan);
-    add('http://10.0.2.2:5000');
+    add('http://10.0.2.2:5001');
     add('http://127.0.0.1:5000');
+    add('http://10.1.121.20:5000');
     if (_savedRoot != null && _isLoopback(_savedRoot!)) {
       add(_savedRoot!);
     }

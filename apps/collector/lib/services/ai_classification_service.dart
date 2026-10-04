@@ -13,6 +13,13 @@ class ClassificationResult {
   final String? electronicDevice;
   final String? shortDescription;
   final List<String> suggestions;
+  final int? estimatedValueInr;
+  final int? ratePerKgInr;
+  final String? rateRange;
+  final List<String> detectedMinerals;
+  final int? eprCredits;
+  final double? co2SavedKg;
+  final String? negotiationTip;
 
   ClassificationResult({
     required this.categoryId,
@@ -26,6 +33,13 @@ class ClassificationResult {
     this.electronicDevice,
     this.shortDescription,
     this.suggestions = const [],
+    this.estimatedValueInr,
+    this.ratePerKgInr,
+    this.rateRange,
+    this.detectedMinerals = const [],
+    this.eprCredits,
+    this.co2SavedKg,
+    this.negotiationTip,
   });
 }
 

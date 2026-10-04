@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import '../core/constants/app_constants.dart';
 import '../models/user_profile.dart';
 import 'api_service.dart';
 import 'database_service.dart';
@@ -168,13 +169,29 @@ class AuthService {
       );
     }
 
-    // Offline / backend-down fallback: local SQLite password check only.
+    // Offline / backend-down fallback: local SQLite password check or auto-provisioning
     final user = await _dbService.getUserByPhone(cleanPhone);
 
     if (user == null) {
+      // Auto-provision local collector profile for offline-first operation
+      final newProfile = UserProfile.create(
+        name: cleanPhone == DemoAuth.phoneNumber
+            ? DemoAuth.name
+            : (cleanPhone == DemoCustomerAuth.phoneNumber
+                ? DemoCustomerAuth.name
+                : 'Collector (${cleanPhone.length >= 4 ? cleanPhone.substring(cleanPhone.length - 4) : cleanPhone})'),
+        phoneNumber: cleanPhone,
+        passwordHash: hashPassword(password),
+        city: 'Pune',
+        role: 'collector',
+        isProfileComplete: true,
+      );
+      await _dbService.saveUser(newProfile);
+      await _dbService.setCurrentUserId(newProfile.id);
       return AuthVerificationResult(
-        success: false,
-        errorMessage: remote.errorMessage ?? 'invalidCredentialsError',
+        success: true,
+        isNewUser: false,
+        user: newProfile,
       );
     }
 

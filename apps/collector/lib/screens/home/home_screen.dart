@@ -12,6 +12,7 @@ import '../../services/connectivity_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/sync_service.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../widgets/ai_copilot_sheet.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/kabadiwala_logo.dart';
 import '../../widgets/language_selector.dart';
@@ -590,6 +591,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => AiCopilotSheet.show(context),
+        backgroundColor: const Color(0xFF134233),
+        icon: const Icon(Icons.psychology, color: Color(0xFF69F0AE)),
+        label: const Text(
+          'AI Copilot',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
       appBar: AppBar(
         leading: Builder(
           builder: (context) => IconButton(

@@ -1,4 +1,4 @@
-/// Model representing an authorized or benchmark e-waste recycler.
+/// Model representing an authorized or benchmark e-waste/scrap recycler from official MPCB directory.
 /// Designed for offline caching, geolocation proximity matching, and material compatibility.
 class Recycler {
   final String id;
@@ -9,6 +9,10 @@ class Recycler {
   final bool isAuthorized;
   final double rating;
   final String? contactPhone;
+  final String? contactPerson;
+  final String? email;
+  final String? capacity;
+  final String? categoryLabel;
   final double latitude;
   final double longitude;
   final double? indicativePrice;
@@ -22,13 +26,17 @@ class Recycler {
     required this.acceptedCategories,
     required this.distanceKm,
     required this.isAuthorized,
-    this.rating = 4.5,
+    this.rating = 4.7,
     this.contactPhone,
+    this.contactPerson,
+    this.email,
+    this.capacity,
+    this.categoryLabel,
     required this.latitude,
     required this.longitude,
     this.indicativePrice,
     this.unit = 'kg',
-    this.isDemo = true,
+    this.isDemo = false,
   });
 
   double get indicativeRatePerKg => indicativePrice ?? 250.0;
@@ -72,9 +80,14 @@ class Recycler {
       isAuthorized: map['is_authorized'] == 1 ||
           map['is_authorized'] == true ||
           map['isAuthorized'] == true,
-      rating: _asDouble(map['rating'], 4.5),
+      rating: _asDouble(map['rating'], 4.7),
       contactPhone:
           (map['contact_phone'] ?? map['contactPhone'])?.toString(),
+      contactPerson:
+          (map['contact_person'] ?? map['contactPerson'])?.toString(),
+      email: (map['email'])?.toString(),
+      capacity: (map['capacity'])?.toString(),
+      categoryLabel: (map['category_label'] ?? map['categoryLabel'])?.toString(),
       latitude: _asDouble(map['latitude'], 0),
       longitude: _asDouble(map['longitude'], 0),
       indicativePrice: map['indicative_price'] == null &&
@@ -82,7 +95,6 @@ class Recycler {
           ? null
           : _asDouble(map['indicative_price'] ?? map['indicativePrice'], 0),
       unit: (map['unit'] ?? 'kg').toString(),
-      // Only treat as demo when explicitly flagged. Missing/false → live.
       isDemo: map['is_demo'] == 1 ||
           map['is_demo'] == true ||
           map['is_demo'] == '1' ||
@@ -107,6 +119,10 @@ class Recycler {
     bool? isAuthorized,
     double? rating,
     String? contactPhone,
+    String? contactPerson,
+    String? email,
+    String? capacity,
+    String? categoryLabel,
     double? latitude,
     double? longitude,
     double? indicativePrice,
@@ -122,6 +138,10 @@ class Recycler {
       isAuthorized: isAuthorized ?? this.isAuthorized,
       rating: rating ?? this.rating,
       contactPhone: contactPhone ?? this.contactPhone,
+      contactPerson: contactPerson ?? this.contactPerson,
+      email: email ?? this.email,
+      capacity: capacity ?? this.capacity,
+      categoryLabel: categoryLabel ?? this.categoryLabel,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       indicativePrice: indicativePrice ?? this.indicativePrice,

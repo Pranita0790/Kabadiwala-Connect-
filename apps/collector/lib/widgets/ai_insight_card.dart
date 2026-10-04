@@ -81,6 +81,129 @@ class AiInsightCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (result.ratePerKgInr != null || result.estimatedValueInr != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFC8E6C9)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Estimated Rate',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '₹${result.ratePerKgInr ?? '--'}/kg',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.primary),
+                      ),
+                      if (result.rateRange != null)
+                        Text(
+                          result.rateRange!,
+                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                    ],
+                  ),
+                  if (result.estimatedValueInr != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Total Est. Value',
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '₹${result.estimatedValueInr}',
+                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (result.detectedMinerals.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const Text(
+              'Critical Minerals & Elements:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final min in result.detectedMinerals)
+                  Chip(
+                    label: Text(min, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
+                    backgroundColor: const Color(0xFFDCEDC8),
+                    padding: EdgeInsets.zero,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ],
+          if (result.eprCredits != null || result.co2SavedKg != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE0F2F1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.eco, color: Color(0xFF00796B), size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'EPR: +${result.eprCredits ?? 0} pts  •  CO₂ Saved: ${result.co2SavedKg ?? 0} kg',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF004D40)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (result.negotiationTip != null && result.negotiationTip!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF9C4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFFF59D)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.psychology, color: Color(0xFFF57F17), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'AI Bargaining Tip: ${result.negotiationTip!}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF5D4037)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if ((result.shortDescription ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
