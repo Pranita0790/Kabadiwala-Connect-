@@ -28,6 +28,7 @@ class AiCopilotSheet extends StatefulWidget {
 
 class _AiCopilotSheetState extends State<AiCopilotSheet> {
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
   final FlutterTts _tts = FlutterTts();
   final SpeechToText _speechToText = SpeechToText();
@@ -38,6 +39,18 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
   bool _speechEnabled = false;
   String _liveSpokenText = '';
   String _activeLang = 'hi';
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -299,6 +312,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
             });
 
             _speak(replyText);
+            _scrollToBottom();
             success = true;
             BackendUrl.rememberRoot(root);
             break;
@@ -313,6 +327,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
       _generateDynamicAnalysis(query: query, imagePath: imagePath);
     }
     if (mounted) setState(() => _loading = false);
+    _scrollToBottom();
   }
 
   void _generateDynamicAnalysis({required String query, String? imagePath}) {
@@ -468,6 +483,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
     });
 
     _speak(responseText);
+    _scrollToBottom();
   }
 
   void _createLotFromValuation(Map<String, dynamic> val) {
@@ -490,6 +506,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
   void dispose() {
     _tts.stop();
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -498,7 +515,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.82,
+      height: MediaQuery.of(context).size.height * 0.92,
       padding: EdgeInsets.only(bottom: bottomInset),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -508,7 +525,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: const BoxDecoration(
               color: Color(0xFF134233),
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -566,6 +583,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
           // Messages List
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
@@ -888,6 +906,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
                         _messages.add({'isUser': true, 'text': text});
                         _loading = true;
                       });
+                      _scrollToBottom();
                       _callCopilot(query: text);
                     },
                   ),
@@ -904,6 +923,7 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
                       _messages.add({'isUser': true, 'text': text});
                       _loading = true;
                     });
+                    _scrollToBottom();
                     _callCopilot(query: text);
                   },
                 ),
