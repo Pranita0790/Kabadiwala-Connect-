@@ -15,13 +15,7 @@ const NVIDIA_API_KEY =
   "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";
 
 const NIM_MODELS = [
-  "meta/llama-3.3-70b-instruct",
-  "meta/llama-3.1-70b-instruct",
-  "meta/llama-3.1-8b-instruct",
-  "mistralai/mistral-large-2-instruct",
   "meta/llama-3.2-11b-vision-instruct",
-  "deepseek-ai/deepseek-v4.1-flash",
-  "google/gemma-3-12b-it",
 ];
 
 const TOP_RECYCLERS = [

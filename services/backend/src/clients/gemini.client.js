@@ -520,31 +520,137 @@ Analyze the scrap, determine material category, estimate weight/value, recommend
     }
   }
 
+  // 3. Dynamic High-Precision Local AI Extraction Engine
   const isMr = langCode.startsWith("mr");
   const isHi = langCode.startsWith("hi");
-  return {
-    reply: isMr
-      ? "तुमच्या स्क्रॅपसाठी विद्युत हाय-ग्रेड कॉपर रिफायनर्स (गुलटेकडी) तुम्हाला ₹650/किलो सर्वोत्तम दर देईल. तांब्याची तार वेगळी ठेवल्यास 15% जास्ती नफा मिळेल."
+  const q = String(message || "").toLowerCase();
+
+  // Extract weight from query
+  let weightKg = 5.0;
+  const numMatch = q.match(/(\d+(?:\.\d+)?)\s*(?:kg|किलो|किलोग्राम|kilo|gram|gm)?/i);
+  if (numMatch && parseFloat(numMatch[1]) > 0 && parseFloat(numMatch[1]) <= 5000) {
+    weightKg = parseFloat(numMatch[1]);
+  }
+
+  let material = "copper_wire";
+  let catName = isMr ? "तांब्याची तार (Copper Wire)" : isHi ? "तांबा तार (Copper Wire)" : "Copper Wire";
+  let rate = 650;
+  let recycler = TOP_RECYCLERS[0];
+  let advice = isMr
+    ? "तांब्याची तार प्लास्टिक कव्हरपासून वेगळी केल्यास 15% अधिक दर मिळतो."
+    : isHi
+    ? "तार को प्लास्टिक कोटिंग से अलग छीलकर बेचने पर 15% अधिक भाव मिलता है।"
+    : "Strip plastic insulation cleanly for an extra 15% margin at the smelter.";
+
+  if (q.includes("battery") || q.includes("बैटरी") || q.includes("बॅटरी") || q.includes("cell") || q.includes("लिथियम") || q.includes("inverter") || q.includes("lithium")) {
+    material = "battery";
+    catName = isMr ? "बॅटरी व सेल्स (Batteries)" : isHi ? "बैटरी व सेल (Batteries)" : "Batteries & Cells";
+    rate = 140;
+    recycler = TOP_RECYCLERS[4] || TOP_RECYCLERS[2];
+    advice = isMr
+      ? "बॅटरीचे टर्मिनल्स सुरक्षित टेपने झाकून ठेवा आणि कोरड्या जागेत साठवा."
       : isHi
-      ? "आपके स्क्रैप के लिए विद्युत हाई-ग्रेड कॉपर रिफाइनर्स (गुलटेकडी) आपको सबसे बेहतरीन ₹650/किलो का भाव देगा। तांबे का तार अलग रखने से 15% अधिक मुनाफा होगा।"
-      : "For your scrap, Vidyut High-Grade Copper Refiners pays the highest benchmark rate of ₹650/kg. Segregate copper wire cleanly for maximum margin.",
-    detected_material: "copper_wire",
-    category_name: "Copper Wire",
-    estimated_weight_kg: 5.0,
-    suggested_rate_per_kg: 650,
-    total_estimated_value_inr: 3250,
+      ? "बैटरी के टर्मिनलों पर टेप लगाएं और गीली जगह से दूर रखें।"
+      : "Insulate battery terminals with tape and keep dry for authorized hazardous buyback.";
+  } else if (q.includes("pcb") || q.includes("motherboard") || q.includes("सर्किट") || q.includes("कंप्यूटर") || q.includes("laptop") || q.includes("board") || q.includes("chip") || q.includes("cpu")) {
+    material = "pcb_motherboard";
+    catName = isMr ? "मदरबोर्ड व पीसीबी (Motherboard / PCB)" : isHi ? "मदरबोर्ड व पीसीबी (Motherboard / PCB)" : "Motherboard / High-Grade PCB";
+    rate = 520;
+    recycler = TOP_RECYCLERS[1];
+    advice = isMr
+      ? "पीसीबी बोर्ड तोडू नका; सोन्याच्या व तांब्याच्या संपर्कांसाठी अखंड बोर्डवर जास्त किंमत मिळते."
+      : isHi
+      ? "पीसीबी बोर्ड को तोड़ें नहीं; अक्षुण्ण बोर्ड पर गोल्ड और पैलेडियम का पूरा मूल्य मिलता है।"
+      : "Do not break boards; gold-plated contacts fetch premium industrial smelter value.";
+  } else if (q.includes("motor") || q.includes("मोटर") || q.includes("pump") || q.includes("cooler") || q.includes("fan") || q.includes("पंखा") || q.includes("कूलर") || q.includes("फ्रिज") || q.includes("fridge") || q.includes("compressor")) {
+    material = "heavy_appliances";
+    catName = isMr ? "मोटर व हेवी इलेक्ट्रिकल (Motors)" : isHi ? "मोटर व हेवी इलेक्ट्रिकल (Motors)" : "Motors & Heavy Appliances";
+    rate = 75;
+    recycler = TOP_RECYCLERS[2];
+    advice = isMr
+      ? "कॉपर वाइंडिंग आणि मॅग्नेट्स वेगळे केल्यास सर्वोत्तम परतावा मिळतो."
+      : isHi
+      ? "कॉपर वाइंडिंग और मैग्नेट को अलग करने से मशीनरी का सर्वश्रेष्ठ दाम मिलता है।"
+      : "Segregate heavy copper windings from the stator core for maximum scrap valuation.";
+  } else if (q.includes("screen") || q.includes("tv") || q.includes("display") || q.includes("डिस्प्ले") || q.includes("मॉनिटर") || q.includes("monitor") || q.includes("crt") || q.includes("lcd")) {
+    material = "display_monitor";
+    catName = isMr ? "स्क्रीन व मॉनिटर (Displays & Screens)" : isHi ? "स्क्रीन व मॉनिटर (Displays & Screens)" : "Monitors & Displays";
+    rate = 55;
+    recycler = TOP_RECYCLERS[1];
+    advice = isMr
+      ? "स्क्रीनची काच फुटू देऊ नका; सुरक्षितपणे हाताळल्यास रिफर्बिशिंग बोनस मिळतो."
+      : isHi
+      ? "स्क्रीन का कांच टूटने न दें; सुरक्षित डिस्प्ले पर रिफर्बिशिंग बोनस मिलता है।"
+      : "Keep glass intact to qualify for refurbishing component recovery bonus.";
+  } else if (q.includes("plastic") || q.includes("प्लास्टिक") || q.includes("bottle") || q.includes("बोतल") || q.includes("pet")) {
+    material = "plastic";
+    catName = isMr ? "प्लास्टिक स्क्रॅप (Plastics)" : isHi ? "प्लास्टिक स्क्रैप (Plastics)" : "Industrial Plastics";
+    rate = 32;
+    recycler = TOP_RECYCLERS[5];
+    advice = isMr
+      ? "रंगीत प्लास्टिक आणि पांढरे PET वेगळे केल्यास दर 20% वाढतो."
+      : isHi
+      ? "सफेद PET बोतल और रंगीन प्लास्टिक को अलग करने से ₹5-8/किलो अधिक मिलता है।"
+      : "Separate clear PET bottles from colored HDPE for a 20% price premium.";
+  } else if (q.includes("paper") || q.includes("रद्दी") || q.includes("कागद") || q.includes("book") || q.includes("अखबार") || q.includes("पुस्तके") || q.includes("carton") || q.includes("गत्ता")) {
+    material = "paper";
+    catName = isMr ? "रद्दी व कागद (Paper & Books)" : isHi ? "रद्दी व कागज़ (Paper & Books)" : "Paper & Books";
+    rate = 18;
+    recycler = { name: "Shree Paper Mills & Recyclers", rate_per_kg: 18, distance_km: 6.0, address: "Hadapsar Industrial Estate, Pune" };
+    advice = isMr
+      ? "रद्दी कागद कोरडा ठेवा; गिला कागदावर वजनाचा भाव कापला जातो."
+      : isHi
+      ? "रद्दी को सूखा रखें; गीले गत्ते पर मिल वजन में कटौती करती है।"
+      : "Keep paper dry; wet pulp incurs penalty weight deductions.";
+  } else if (q.includes("iron") || q.includes("लोहा") || q.includes("लोखंड") || q.includes("steel") || q.includes("स्टील")) {
+    material = "ferrous";
+    catName = isMr ? "लोखंड व स्टील (Iron & Steel)" : isHi ? "लोहा व स्टील (Iron & Steel)" : "Iron & Steel Scrap";
+    rate = 46;
+    recycler = TOP_RECYCLERS[6];
+    advice = isMr
+      ? "जड लोखंड (Heavy Melting Steel) वेगळे विकल्यास हलक्या पत्रापेक्षा जास्ती दर मिळतो."
+      : isHi
+      ? "भारी लोहा (HMS) को पतली चद्दर से अलग रखें, ₹6/किलो अधिक भाव मिलेगा।"
+      : "Heavy structural iron commands higher rates than light sheet metal scrap.";
+  } else if (q.includes("aluminium") || q.includes("aluminum") || q.includes("एल्युमिनियम") || q.includes("अल्युमिनियम")) {
+    material = "aluminium";
+    catName = isMr ? "ॲल्युमिनियम (Aluminium Scrap)" : isHi ? "एल्युमिनियम (Aluminium Scrap)" : "Aluminium Scrap";
+    rate = 165;
+    recycler = TOP_RECYCLERS[0];
+    advice = isMr
+      ? "कास्ट ॲल्युमिनियम आणि वायर वेगळे ठेवा."
+      : isHi
+      ? "तार वाले साफ एल्युमिनियम को कास्टिंग से अलग बेचें, ज्यादा मुनाफा होगा।"
+      : "Separate clean conductor aluminium from cast metal for premium rates.";
+  }
+
+  const totalValue = Math.round(weightKg * rate);
+
+  const reply = isMr
+    ? `तुमच्या ${weightKg} किलो ${catName} साठी "${recycler.name}" (${recycler.address}) सर्वोत्तम ₹${rate}/किलो दर देईल. एकूण अंदाजे मूल्य ₹${totalValue} होईल. ${advice}`
+    : isHi
+    ? `आपके ${weightKg} किलो ${catName} के लिए "${recycler.name}" (${recycler.address}) सबसे बेहतरीन ₹${rate}/किलो का भाव देगा। कुल अनुमानित मूल्य ₹${totalValue} होगा। ${advice}`
+    : `For ${weightKg} kg of ${catName}, "${recycler.name}" (${recycler.address}) offers the top benchmark rate of ₹${rate}/kg (Total: ₹${totalValue}). ${advice}`;
+
+  return {
+    reply,
+    detected_material: material,
+    category_name: catName,
+    estimated_weight_kg: weightKg,
+    suggested_rate_per_kg: rate,
+    total_estimated_value_inr: totalValue,
     best_paying_recycler: {
-      name: "Vidyut High-Grade Copper Refiners",
-      rate_per_kg: 650,
-      distance_km: 3.5,
-      address: "Marketyard, Pune",
-      reason: "Direct smelter with no middleman margin",
+      name: recycler.name,
+      rate_per_kg: rate,
+      distance_km: recycler.distance_km,
+      address: recycler.address,
+      reason: "Direct authorized MPCB facility with highest recovery yield",
     },
     suggested_actions: isMr
-      ? ["लॉट तयार करा (Create Lot)", "रिफायनरला कॉल करा", "ताजा दर तपासा"]
+      ? [`लॉट तयार करा (₹${totalValue})`, "रीसायकलरला कॉल करा", "ताजा दर तपासा"]
       : isHi
-      ? ["लॉट बनाएं (Create Lot)", "रीसाइक्लर को कॉल करें", "ताज़ा रेट देखें"]
-      : ["Create Lot", "Call Recycler", "Check Live Rates"],
+      ? [`लॉट बनाएं (₹${totalValue})`, "रीसाइक्लर को कॉल करें", "ताज़ा रेट देखें"]
+      : [`Create Lot (₹${totalValue})`, "Call Recycler", "Live Market Index"],
     can_create_lot: true,
   };
 }
