@@ -89,6 +89,8 @@ function isConfigured() {
 
 function stripFences(text) {
   if (typeof text !== "string") return "";
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) return match[0];
   return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 }
 
@@ -314,12 +316,24 @@ async function analyzeImage({ fileBuffer, mimetype, weightKg }) {
 
   const started = Date.now();
   const mime = (mimetype || "image/jpeg").toLowerCase();
+
+  // 1. Try NVIDIA NIM Vision first
+  try {
+    const nvidia = require("./nvidia.client");
+    const nimParsed = await nvidia.analyzeImageNim({ fileBuffer, mimetype: mime, weightKg });
+    if (nimParsed && nimParsed.material) {
+      return {
+        raw: toAnalyzeShape(nimParsed, weightKg),
+        latencyMs: Date.now() - started,
+      };
+    }
+  } catch (e) {
+    logger.warn(`NVIDIA NIM vision attempt failed: ${e.message}`);
+  }
+
   const candidateModels = [
-    config.ai.geminiModel,
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.8-flash-lite",
-    "gemini-flash-latest",
+    config.ai.geminiModel || "gemini-3.8-flash",
+    "gemini-3.8-flash",
   ].filter((v, i, a) => v && a.indexOf(v) === i);
 
   let parsed = null;
@@ -349,7 +363,6 @@ async function analyzeImage({ fileBuffer, mimetype, weightKg }) {
           ],
           generationConfig: {
             temperature: 0.1,
-            responseMimeType: "application/json",
           },
         },
         {
@@ -414,6 +427,17 @@ const TOP_RECYCLERS = [
 ];
 
 async function chatWithAssistant({ message, language = "en", imageBase64, mimetype, context = {} }) {
+  // 1. Try NVIDIA NIM first
+  try {
+    const nvidia = require("./nvidia.client");
+    const nimResult = await nvidia.chatWithNim({ message, language, imageBase64, mimetype, context });
+    if (nimResult && nimResult.reply) {
+      return nimResult;
+    }
+  } catch (e) {
+    logger.warn(`NVIDIA NIM chat dispatch failed: ${e.message}`);
+  }
+
   const langCode = (language || "en").toLowerCase();
   const langPrompt =
     langCode.startsWith("mr")
@@ -458,11 +482,8 @@ Analyze the scrap, determine material category, estimate weight/value, recommend
   }
 
   const candidateModels = [
-    config.ai.geminiModel,
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.8-flash-lite",
-    "gemini-flash-latest",
+    config.ai.geminiModel || "gemini-3.8-flash",
+    "gemini-3.8-flash",
   ].filter((v, i, a) => v && a.indexOf(v) === i);
 
   for (const model of candidateModels) {
@@ -477,7 +498,6 @@ Analyze the scrap, determine material category, estimate weight/value, recommend
           contents: [{ parts }],
           generationConfig: {
             temperature: 0.2,
-            responseMimeType: "application/json",
           },
         },
         {

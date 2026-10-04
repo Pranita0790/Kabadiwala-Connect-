@@ -220,54 +220,69 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
     String? imageBase64,
     String? imagePath,
   }) async {
-    try {
-      final root = await BackendUrl.resolve();
-      final uri = Uri.parse('$root/api/ai/copilot');
-      final res = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'message': query,
-          'language': _activeLang,
-          'imageBase64': imageBase64,
-          'mimetype': 'image/jpeg',
-        }),
-      ).timeout(const Duration(seconds: 14));
+    final candidateRoots = <String>{
+      BackendUrl.root,
+      'http://127.0.0.1:5001',
+      'http://10.1.121.20:5001',
+      'http://10.0.2.2:5001',
+      'http://127.0.0.1:5000',
+    };
 
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body)['data'];
-        final replyText = data['reply'] ?? '';
+    bool success = false;
+    for (final root in candidateRoots) {
+      try {
+        final uri = Uri.parse('$root/api/ai/copilot');
+        final res = await http.post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'message': query,
+            'language': _activeLang,
+            'imageBase64': imageBase64,
+            'mimetype': 'image/jpeg',
+          }),
+        ).timeout(const Duration(seconds: 40));
 
-        setState(() {
-          _messages.add({
-            'isUser': false,
-            'text': replyText,
-            'chips': (data['suggested_actions'] as List?)?.map((e) => e.toString()).toList() ?? [],
-            'valuation': data['total_estimated_value_inr'] != null
-                ? {
-                    'material': data['detected_material'] ?? 'copper_wire',
-                    'category_name': data['category_name'] ?? 'Copper Wire',
-                    'weight_kg': (data['estimated_weight_kg'] as num?)?.toDouble() ?? 5.0,
-                    'rate_per_kg': (data['suggested_rate_per_kg'] as num?)?.toInt() ?? 650,
-                    'total_value': (data['total_estimated_value_inr'] as num?)?.toInt() ?? 3250,
-                    'best_recycler': data['best_paying_recycler'],
-                    'imagePath': imagePath,
-                  }
-                : null,
+        if (res.statusCode == 200) {
+          final jsonBody = json.decode(res.body);
+          final data = jsonBody['data'] ?? jsonBody;
+          final replyText = data['reply'] ?? '';
+
+          setState(() {
+            _messages.add({
+              'isUser': false,
+              'text': replyText,
+              'chips': (data['suggested_actions'] as List?)?.map((e) => e.toString()).toList() ?? [],
+              'valuation': data['total_estimated_value_inr'] != null
+                  ? {
+                      'material': data['detected_material'] ?? 'copper_wire',
+                      'category_name': data['category_name'] ?? 'Copper Wire',
+                      'weight_kg': (data['estimated_weight_kg'] as num?)?.toDouble() ?? 5.0,
+                      'rate_per_kg': (data['suggested_rate_per_kg'] as num?)?.toInt() ?? 650,
+                      'total_value': (data['total_estimated_value_inr'] as num?)?.toInt() ?? 3250,
+                      'best_recycler': data['best_paying_recycler'],
+                      'imagePath': imagePath,
+                    }
+                  : null,
+            });
           });
-        });
 
-        if (replyText.isNotEmpty) {
-          _speak(replyText);
+          if (replyText.isNotEmpty) {
+            _speak(replyText);
+          }
+          success = true;
+          BackendUrl.rememberRoot(root);
+          break;
         }
-      } else {
-        _addFallback();
+      } catch (_) {
+        // Try next candidate root
       }
-    } catch (_) {
-      _addFallback();
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
+
+    if (!success) {
+      _addFallback();
+    }
+    if (mounted) setState(() => _loading = false);
   }
 
   void _addFallback() {

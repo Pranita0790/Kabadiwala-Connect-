@@ -400,6 +400,111 @@ import {
   
   
         {/* =====================================================
+            AI MARKET TREND & ARBITRAGE FORECAST
+            ===================================================== */}
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "14px",
+            border: "1px solid #d1fae5",
+            padding: "20px",
+            marginBottom: "24px",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.03)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "14px",
+              flexWrap: "wrap",
+              gap: "10px",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  color: "#059669",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                <span>✨ AI Commodity Index & 7-Day Trend Prediction</span>
+              </div>
+              <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", margin: "2px 0 0 0" }}>
+                MCX & Secondary Smelter Spot Benchmark
+              </h3>
+            </div>
+            <div
+              style={{
+                backgroundColor: "#ecfdf5",
+                color: "#065f46",
+                border: "1px solid #a7f3d0",
+                padding: "4px 10px",
+                borderRadius: "20px",
+                fontSize: "11px",
+                fontWeight: 700,
+              }}
+            >
+              Live MCX/LME Linked
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: "12px",
+            }}
+          >
+            {[
+              { material: "Copper Armature & Wire", spot: "₹650/kg", change: "+4.2%", trend: "Bullish", tip: "Smelters paying +₹30/kg premium for clean unburned wire" },
+              { material: "Telecom & Server PCB", spot: "₹580/kg", change: "+6.8%", trend: "Surge", tip: "Gold/Palladium recovery demand up across Maharashtra" },
+              { material: "Lithium NMC Battery", spot: "₹160/kg", change: "+2.5%", trend: "Steady", tip: "High nickel chemistry cells yield highest margin" },
+              { material: "Neodymium Rare-Earth", spot: "₹4,500/kg", change: "+8.1%", trend: "High Demand", tip: "Direct procurement by EV drivetrain refiners" },
+            ].map((trend, i) => (
+              <div
+                key={i}
+                style={{
+                  backgroundColor: "#f8fafc",
+                  borderRadius: "10px",
+                  padding: "12px",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong style={{ fontSize: "13px", color: "#1e293b" }}>{trend.material}</strong>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "#059669",
+                      backgroundColor: "#dcfce7",
+                      padding: "2px 6px",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    {trend.change}
+                  </span>
+                </div>
+                <div style={{ fontSize: "16px", fontWeight: 800, color: "#065f46", margin: "6px 0 4px 0" }}>
+                  {trend.spot}
+                </div>
+                <p style={{ fontSize: "11px", color: "#64748b", margin: 0, lineHeight: 1.4 }}>
+                  {trend.tip}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* =====================================================
             TOOLBAR
             ===================================================== */}
   

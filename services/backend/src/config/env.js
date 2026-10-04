@@ -130,11 +130,7 @@ if (!jwtSecret) {
 | any of the discrete DB_* settings.
 */
 const databaseConnectionString = optional("DATABASE_URL");
-const databaseConfigured = Boolean(
-  databaseConnectionString ||
-    optional("DB_HOST") ||
-    optional("DB_NAME")
-);
+const databaseConfigured = Boolean(databaseConnectionString);
 
 const config = {
   env: nodeEnv,
@@ -207,7 +203,7 @@ const config = {
       "/api/v1/critical-mineral/check"
     ),
     healthPath: optional("AI_SERVICE_HEALTH_PATH", "/health"),
-    timeoutMs: toInt("AI_SERVICE_TIMEOUT_MS", 15_000),
+    timeoutMs: toInt("AI_SERVICE_TIMEOUT_MS", 45_000),
     maxImageBytes: toInt("AI_MAX_IMAGE_BYTES", 10 * 1024 * 1024),
     // Circuit breaker: stop calling a failing AI service for a cool-down window.
     breakerThreshold: toInt("AI_BREAKER_THRESHOLD", 5),

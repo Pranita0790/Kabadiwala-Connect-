@@ -35,6 +35,60 @@ export async function runAiRecyclerAudit(lotData: {
   return result.data?.data;
 }
 
+export async function runAiCopilot(payload: {
+  message?: string;
+  language?: string;
+  imageBase64?: string | null;
+  mimetype?: string;
+  context?: Record<string, unknown>;
+}) {
+  const result = await apiFetch<{
+    success: boolean;
+    data: {
+      reply: string;
+      detected_material?: string;
+      category_name?: string;
+      estimated_weight_kg?: number;
+      suggested_rate_per_kg?: number;
+      total_estimated_value_inr?: number;
+      best_paying_recycler?: {
+        name: string;
+        rate_per_kg: number;
+        distance_km: number;
+        address: string;
+        reason: string;
+      };
+      suggested_actions?: string[];
+      can_create_lot?: boolean;
+    };
+  }>("/ai/copilot", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  return result.data?.data;
+}
+
+export async function fetchRatesIndex() {
+  const result = await apiFetch<{
+    success: boolean;
+    data: {
+      rates: Record<string, { min: number; max: number; avg: number }>;
+      critical_minerals: Record<
+        string,
+        {
+          minerals: string[];
+          epr_credits_per_kg: number;
+          co2_offset_kg_per_kg: number;
+        }
+      >;
+      timestamp: string;
+    };
+  }>("/ai/rates-index");
+
+  return result.data?.data;
+}
+
 const TOKEN_KEY = "kabadiwala-access-token";
 const REFRESH_KEY = "kabadiwala-refresh-token";
 const USER_KEY = "kabadiwala-auth-user";

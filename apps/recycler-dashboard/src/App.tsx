@@ -12,6 +12,7 @@ import {
   Recycle,
   Settings,
   ShieldCheck,
+  Sparkles,
   Truck,
   Wallet,
 } from "lucide-react";
@@ -74,6 +75,10 @@ const Traceability = lazy(
 
 const RateBoard = lazy(
   () => import("./pages/RateBoard")
+);
+
+const AiIntelligenceHub = lazy(
+  () => import("./pages/AiIntelligenceHub")
 );
 
 const SettingsPage = lazy(
@@ -638,6 +643,22 @@ function Dashboard({
 
           </p>
 
+          <NavLink
+            to="/ai-intelligence"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              marginTop: "12px",
+              color: "#047857",
+              fontWeight: 800,
+              fontSize: "13px",
+              textDecoration: "none",
+            }}
+          >
+            Open AI Smelter & EPR Hub →
+          </NavLink>
+
         </div>
 
       </div>
@@ -708,6 +729,10 @@ function App() {
 
   const isRateBoard =
     location.pathname === "/rate-board";
+
+  const isAiHub =
+    location.pathname === "/ai-intelligence" ||
+    location.pathname === "/ai-copilot";
 
   const isLotDetails =
     location.pathname.startsWith(
@@ -814,6 +839,10 @@ function App() {
       return "Rate Board";
     }
 
+    if (isAiHub) {
+      return "AI Yield & EPR Intelligence Hub";
+    }
+
     if (isSettings) {
       return "Settings";
     }
@@ -840,7 +869,7 @@ function App() {
       return "Finance";
     }
 
-    if (isTraceability) {
+    if (isTraceability || isAiHub) {
       return "Material Intelligence";
     }
 
@@ -1027,6 +1056,41 @@ function App() {
 
               <span>
                 Rate Board
+              </span>
+
+            </NavLink>
+
+
+            {/* AI SMELTER & EPR HUB */}
+
+            <NavLink
+              to="/ai-intelligence"
+              className={({ isActive }) =>
+                `nav-item ${
+                  isActive || isAiHub
+                    ? "active"
+                    : ""
+                }`
+              }
+            >
+
+              <Sparkles size={19} color="#10b981" />
+
+              <span>
+                AI Smelter & EPR
+              </span>
+
+              <span
+                className="nav-badge"
+                style={{
+                  backgroundColor: "#10b981",
+                  color: "#064e3b",
+                  fontWeight: 800,
+                  fontSize: "10px",
+                  padding: "2px 6px",
+                }}
+              >
+                AI
               </span>
 
             </NavLink>
@@ -1266,6 +1330,10 @@ function App() {
           ) : isRateBoard ? (
 
             <RateBoard />
+
+          ) : isAiHub ? (
+
+            <AiIntelligenceHub />
 
           ) : isSettings ? (
 
