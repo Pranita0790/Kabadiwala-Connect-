@@ -18,9 +18,8 @@ services:
     region: oregon
     rootDir: services/backend
     buildCommand: npm ci --omit=dev
-    # Fresh Postgres has no tables until migrations run.
-    preDeployCommand: npm run migrate
-    startCommand: node src/db/migrate.js up && npm start
+    # server.js also runs migrations on boot (idempotent).
+    startCommand: npm start
     healthCheckPath: /health/live
     autoDeploy: true
     envVars:

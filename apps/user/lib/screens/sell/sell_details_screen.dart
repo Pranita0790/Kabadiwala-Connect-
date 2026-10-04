@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../core/auth/user_auth_controller.dart';
 import '../../core/constants/app_colors.dart';
-import '../../models/payment_record.dart';
 import '../../models/sell_draft.dart';
-import '../../repositories/loyalty_repository.dart';
-import '../../repositories/payment_repository.dart';
 import '../../repositories/sell_request_repository.dart';
 import '../../repositories/vendor_repository.dart';
-import '../../services/razorpay_service.dart';
+import 'receive_upi_payment_screen.dart';
 import 'request_status_screen.dart';
-import 'vendor_review_screen.dart';
 
 /// Pickup: send request to kabadiwala first.
-/// Shop visit: Continue to payment → Razorpay Test checkout.
+/// Shop visit: Continue to payment → UPI receive scanner (customer gets paid).
 class SellDetailsScreen extends StatefulWidget {
   final SellDraft draft;
 
@@ -25,7 +20,6 @@ class SellDetailsScreen extends StatefulWidget {
 class _SellDetailsScreenState extends State<SellDetailsScreen> {
   late final TextEditingController _addressCtrl;
   late final TextEditingController _noteCtrl;
-  final RazorpayService _razorpay = RazorpayService();
   String _timeSlot = 'Today, 4:00 PM - 6:00 PM';
   bool _busy = false;
 
@@ -45,15 +39,10 @@ class _SellDetailsScreenState extends State<SellDetailsScreen> {
       text: widget.draft.pickupAddress ?? 'B-402, Green Acres, Andheri East',
     );
     _noteCtrl = TextEditingController(text: widget.draft.note ?? '');
-    _razorpay.init(
-      onSuccess: _onRazorpaySuccess,
-      onFailure: _onRazorpayFailure,
-    );
   }
 
   @override
   void dispose() {
-    _razorpay.dispose();
     _addressCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
@@ -119,186 +108,13 @@ class _SellDetailsScreenState extends State<SellDetailsScreen> {
 
   Future<void> _goShopPayment() async {
     if (_busy) return;
-    setState(() => _busy = true);
-
-    try {
-      final ready = await _razorpay.ensureConfigured();
-      if (!ready) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Razorpay key not loaded. Set RAZORPAY_KEY_ID in repo .env, '
-              'restart backend, then try again.',
-            ),
-            duration: Duration(seconds: 5),
-          ),
-        );
-        return;
-      }
-
-      final draft = _buildDraft();
-      final auth = UserAuthController();
-      final opened = await _razorpay.openCheckout(
-        amountRupees: draft.estimatedAmount,
-        description:
-            'Scrap · ${draft.materialsSummary} · ${draft.vendor.name}',
-        contact: auth.userPhone.isNotEmpty ? auth.userPhone : null,
-      );
-
-      // Checkout sheet is on top — clear loading so UI is not stuck if
-      // the user dismisses the sheet without a callback on some devices.
-      if (opened && mounted) {
-        setState(() => _busy = false);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Payment open failed: $e')),
-      );
-    } finally {
-      if (mounted && _busy) {
-        setState(() => _busy = false);
-      }
-    }
-  }
-
-  Future<void> _onRazorpaySuccess(String paymentId) async {
-    await _completeShopPayment(paymentId);
-  }
-
-  /// Finishes shop-visit after Razorpay success or offline demo pay.
-  Future<void> _completeShopPayment(String paymentId) async {
-    setState(() => _busy = true);
     final draft = _buildDraft();
-    final vendor = draft.vendor;
-    VendorRepository().connectVendor(vendor.id);
-
-    final request = await SellRequestRepository().createRequest(
-      materialName: draft.primaryMaterialName,
-      materialCategory: draft.primaryCategory,
-      approximateQuantity: '${draft.totalWeightKg.toStringAsFixed(1)} kg',
-      pickupLocation: draft.pickupAddress ?? vendor.address,
-      preferredTime: draft.preferredTime ?? 'Shop visit',
-      note: [
-        'MODE:SHOP_VISIT',
-        'RAZORPAY:$paymentId',
-        if (draft.note != null) draft.note!,
-        'Items: ${draft.materialsSummary}',
-      ].join(' | '),
-      vendor: vendor,
-    );
-
-    final amount = draft.estimatedAmount;
-    final payment = PaymentRecord(
-      id: 'pay_${DateTime.now().millisecondsSinceEpoch}',
-      amount: amount,
-      date: DateTime.now(),
-      materialName: draft.materialsSummary,
-      weightKg: draft.totalWeightKg,
-      status: 'PAID',
-      referenceNo: paymentId,
-      vendorName: vendor.name,
-    );
-    PaymentRepository().addPayment(payment);
-    SellRequestRepository().completeWithPayment(
-      requestId: request.id,
-      weightKg: draft.totalWeightKg,
-      amount: amount,
-    );
-    final loyalty = await LoyaltyRepository().recordPurchase(
-      collectorId: vendor.id,
-      requestId: request.id.isNotEmpty ? request.id : payment.id,
-      amount: amount,
-    );
-    if (loyalty?.isFavorite == true) {
-      VendorRepository().connectVendor(vendor.id);
-    }
-
-    if (!mounted) return;
-    setState(() => _busy = false);
-
-    if (loyalty?.isFavorite == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${vendor.name} is now your Favorite Kabadiwala'),
-        ),
-      );
-    }
-
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => VendorReviewScreen(
-          vendor: vendor,
-          payment: payment,
-          fulfillmentMode: draft.mode ?? SellFulfillmentMode.shopVisit,
-        ),
+        builder: (_) => ReceiveUpiPaymentScreen(draft: draft),
       ),
     );
-  }
-
-  bool _isNetworkFailure(String message) {
-    final m = message.toLowerCase();
-    return m.contains('err_name_not_resolved') ||
-        m.contains('webpage not available') ||
-        m.contains('network') ||
-        m.contains('dns') ||
-        m.contains('internet') ||
-        m.contains('timed out') ||
-        m.contains('socket') ||
-        m.contains('failed to connect') ||
-        m.contains('host lookup');
-  }
-
-  void _onRazorpayFailure(String message) {
-    if (!mounted) return;
-    setState(() => _busy = false);
-
-    // Phone often fails DNS for api.razorpay.com (no Wi‑Fi / bad DNS).
-    if (_isNetworkFailure(message) || message.trim().isEmpty) {
-      _showOfflinePayDialog(
-        'Phone internet se Razorpay open nahi ho paya '
-        '(api.razorpay.com — ERR_NAME_NOT_RESOLVED).\n\n'
-        'Mobile Wi‑Fi / mobile data on karke dubara try karein, '
-        'ya demo payment se flow continue karein.',
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
-  Future<void> _showOfflinePayDialog(String body) async {
-    final useDemo = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Razorpay network issue'),
-        content: Text(body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Retry later'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Demo pay (offline)'),
-          ),
-        ],
-      ),
-    );
-
-    if (useDemo == true && mounted) {
-      await _completeShopPayment(
-        'demo_offline_${DateTime.now().millisecondsSinceEpoch}',
-      );
-    }
   }
 
   @override
@@ -437,9 +253,9 @@ class _SellDetailsScreenState extends State<SellDetailsScreen> {
                       Expanded(
                         child: Text(
                           'Shop hours: ${vendor.operatingHours}. '
-                          'Razorpay needs phone internet (Wi‑Fi/data). '
-                          'If you see Webpage not available / ERR_NAME_NOT_RESOLVED, '
-                          'turn on data or use Demo pay below.',
+                          'Continue to payment pe UPI scanner/app khulega — '
+                          'aap payment nahi karte, aapko paise milte hain. '
+                          'Request collector app se linked rehti hai.',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -478,7 +294,7 @@ class _SellDetailsScreenState extends State<SellDetailsScreen> {
                   : Icon(_isPickup ? Icons.send_rounded : Icons.payments_outlined),
               label: Text(
                 _busy
-                    ? (_isPickup ? 'Sending request…' : 'Opening Razorpay…')
+                    ? 'Sending request…'
                     : (_isPickup
                         ? 'Send pickup request'
                         : 'Continue to payment'),
@@ -487,21 +303,6 @@ class _SellDetailsScreenState extends State<SellDetailsScreen> {
                 minimumSize: const Size(double.infinity, 52),
               ),
             ),
-            if (!_isPickup) ...[
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: _busy
-                    ? null
-                    : () => _completeShopPayment(
-                          'demo_offline_${DateTime.now().millisecondsSinceEpoch}',
-                        ),
-                icon: const Icon(Icons.wifi_off_rounded),
-                label: const Text('Demo pay (if Razorpay page fails)'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-              ),
-            ],
           ],
         ),
       ),

@@ -102,12 +102,15 @@ async function findRawByPublicId(publicId) {
   }
 
   // Recycler website confirms with the lot public id / lot number.
+  // Cast all sides to text — mixing uuid = text makes Postgres throw 42883.
   return queryOne(
     `${HANDOVER_SELECT}
-     WHERE l.public_id = $1 OR l.lot_number = $1 OR l.client_reference::text = $1
+     WHERE l.public_id::text = $1::text
+        OR l.lot_number = $1::text
+        OR COALESCE(l.client_reference::text, '') = $1::text
      ORDER BY h.created_at DESC
      LIMIT 1`,
-    [publicId],
+    [String(publicId)],
     { label: "handovers:findRawByLotIdentifier" }
   );
 }

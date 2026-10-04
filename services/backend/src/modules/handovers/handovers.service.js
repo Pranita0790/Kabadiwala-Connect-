@@ -158,14 +158,16 @@ async function create(input, user) {
     (isUuid(input.id) ? input.id : null) ||
     crypto.randomUUID();
 
+  // Destination facility from the collector app wins. Dual-use accounts
+  // (collector phone that also has a website org) must NOT auto-bind the
+  // lot to themselves — otherwise Green Earth never sees the handover.
   let recyclerId = lot.recyclerId;
-  if (user.role === userRole.RECYCLER && user.recyclerId) {
-    recyclerId = user.recyclerId;
-  } else if (input.recyclerId || input.recycler_id) {
+
+  if (input.recyclerId || input.recycler_id) {
     // Collector may pass a recycler profile UUID, or a demo/local id / org name.
     const candidate = String(input.recyclerId || input.recycler_id || "").trim();
     if (isUuid(candidate)) {
-      recyclerId = recyclerId || candidate;
+      recyclerId = candidate;
     } else if (candidate) {
       const byName =
         (await recyclersRepository.findIdByOrganisationName(candidate)) ||
@@ -173,7 +175,7 @@ async function create(input, user) {
           input.recyclerName || input.recycler_name || ""
         ));
       if (byName) {
-        recyclerId = recyclerId || byName;
+        recyclerId = byName;
       }
     }
   }
@@ -185,6 +187,11 @@ async function create(input, user) {
     if (byName) {
       recyclerId = byName;
     }
+  }
+
+  // Website-created handovers with no destination fall back to the actor's org.
+  if (!recyclerId && user.role === userRole.RECYCLER && user.recyclerId) {
+    recyclerId = user.recyclerId;
   }
 
   // Bind the lot to ORG (or whichever recycler was selected) so GET /api/lots
@@ -238,9 +245,11 @@ async function confirm(handoverId, user, options = {}) {
   }
 
   const isCollector = user.role === userRole.COLLECTOR && lot.collectorId === user.id;
+  // Accounts with a recycler_profiles row can confirm even if role is still
+  // COLLECTOR (dual-use demo phones that also run the website).
   const isRecycler =
-    user.role === userRole.RECYCLER &&
-    user.recyclerId &&
+    Boolean(user.recyclerId) &&
+    (user.role === userRole.RECYCLER || user.role === userRole.COLLECTOR) &&
     (!raw.recycler_id || raw.recycler_id === user.recyclerId);
   const isAdmin = user.role === userRole.ADMIN;
 

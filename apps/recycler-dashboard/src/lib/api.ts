@@ -238,7 +238,12 @@ export async function loginWithPassword(
     };
   }
 
-  if (user.role !== "RECYCLER" && user.role !== "ADMIN") {
+  // Allow COLLECTOR accounts that also have a recycler org profile.
+  if (
+    user.role !== "RECYCLER" &&
+    user.role !== "ADMIN" &&
+    !user.recyclerId
+  ) {
     return {
       success: false,
       message: "This dashboard is for recycler accounts only.",

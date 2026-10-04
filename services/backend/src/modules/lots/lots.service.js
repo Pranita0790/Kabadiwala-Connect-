@@ -74,10 +74,9 @@ function assertCanView(lot, user) {
     user.recyclerId && lot.recyclerId === user.recyclerId
   );
 
-  // An unclaimed lot is open to any recycler that actually has a profile.
+  // An unclaimed lot is open to any account that has a recycler profile.
   const isUnclaimed = lot.recyclerId === null || lot.recyclerId === undefined;
-  const isRecyclerWithProfile =
-    user.role === userRole.RECYCLER && Boolean(user.recyclerId);
+  const isRecyclerWithProfile = Boolean(user.recyclerId);
 
   if (isCollector || isAssignedRecycler || (isUnclaimed && isRecyclerWithProfile)) {
     return;
@@ -271,11 +270,10 @@ async function list(filters, user) {
   // request for someone else's lots is only honoured for recycler/admin.
   const scoped = { ...filters };
 
-  if (user.role === userRole.COLLECTOR) {
+  if (user.role === userRole.COLLECTOR && !user.recyclerId) {
     scoped.collectorId = user.id;
-  } else if (user.role === userRole.RECYCLER) {
-    // Incoming feed: lots already claimed by this recycler, plus unclaimed
-    // PENDING lots any authorized recycler can accept.
+  } else if (user.role === userRole.RECYCLER || user.recyclerId) {
+    // Incoming feed: claimed by this recycler + unclaimed PENDING lots.
     scoped.recyclerId = scoped.recyclerId || user.recyclerId;
     scoped.includeUnclaimedForRecycler = true;
   }
@@ -391,7 +389,11 @@ async function changeStatus(identifier, nextStatus, user, { note } = {}) {
 
   if (isOwner && collectorActions.includes(nextStatus)) {
     // allowed
-  } else if (user.role !== userRole.RECYCLER && user.role !== userRole.ADMIN) {
+  } else if (
+    user.role !== userRole.RECYCLER &&
+    user.role !== userRole.ADMIN &&
+    !user.recyclerId
+  ) {
     throw new AuthorizationError(
       "Only a recycler or an administrator can move a lot through the workflow."
     );
@@ -429,7 +431,7 @@ async function changeStatus(identifier, nextStatus, user, { note } = {}) {
   let claim = { claimed: false, lot: existing };
 
   if (nextStatus === lotStatus.ACCEPTED && !existing.recyclerId) {
-    if (user.role !== userRole.RECYCLER || !user.recyclerId) {
+    if (!user.recyclerId) {
       throw new AuthorizationError(
         "Only a recycler with a registered profile can accept a lot."
       );

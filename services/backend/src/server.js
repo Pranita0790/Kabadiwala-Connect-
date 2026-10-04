@@ -17,6 +17,7 @@ const app = require("./app");
 const config = require("./config/env");
 const logger = require("./lib/logger");
 const { closePool } = require("./db/pool");
+const { up: migrateUp } = require("./db/migrate");
 
 const server = http.createServer(app);
 
@@ -35,6 +36,23 @@ function start() {
           "return 503 until it is set and migrations have been run."
       );
     }
+  });
+}
+
+/**
+ * Apply pending SQL migrations before accepting traffic.
+ * Safe / idempotent — required on fresh Render Postgres.
+ */
+async function applyMigrationsIfConfigured() {
+  if (!config.database.configured) {
+    return;
+  }
+
+  logger.info("Applying database migrations");
+  const applied = await migrateUp();
+  logger.info("Database migrations ready", {
+    newlyApplied: Array.isArray(applied) ? applied.length : 0,
+    versions: applied,
   });
 }
 
@@ -58,10 +76,20 @@ function shutdown(signal) {
 }
 
 if (require.main === module) {
-  start();
-
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  applyMigrationsIfConfigured()
+    .then(() => {
+      start();
+      process.on("SIGTERM", () => shutdown("SIGTERM"));
+      process.on("SIGINT", () => shutdown("SIGINT"));
+    })
+    .catch((error) => {
+      logger.error("Failed to migrate database on boot", {
+        message: error.message,
+        code: error.code,
+      });
+      // Without schema, DB routes are broken — fail fast so Render redeploys visibly.
+      process.exit(1);
+    });
 }
 
-module.exports = { app, server, start, shutdown };
+module.exports = { app, server, start, shutdown, applyMigrationsIfConfigured };

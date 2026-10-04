@@ -94,10 +94,26 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
     } catch (_) {}
   }
 
-  void _refreshMatchedRecyclers() {
-    setState(() => _isLoading = true);
+  Future<void> _refreshMatchedRecyclers() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    final list = MpcbRecyclersDirectory.getMatchedRecyclers(
+    // Live signed-up recyclers from Node `/api/recyclers` first…
+    List<Recycler> apiRecyclers = const [];
+    try {
+      final result = await _recyclerRepo.fetchMatchingRecyclers(
+        categoryId: _activeCategory == 'all' ? null : _activeCategory,
+        forceRefresh: true,
+      );
+      apiRecyclers = result.recyclers;
+    } catch (_) {
+      // Fall through to MPCB directory offline.
+    }
+
+    // …then MPCB directory as secondary offline catalogue.
+    final mpcb = MpcbRecyclersDirectory.getMatchedRecyclers(
       collectorLat: _collectorLat,
       collectorLng: _collectorLng,
       categoryId: _activeCategory,
@@ -105,6 +121,42 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
       sortByPrice: _sortByPrice,
     );
 
+    final seen = <String>{};
+    final merged = <Recycler>[];
+    for (final r in [...apiRecyclers, ...mpcb]) {
+      final key = r.id.isNotEmpty ? r.id : r.name.toLowerCase();
+      if (seen.add(key)) merged.add(r);
+    }
+
+    final q = _searchQuery.trim().toLowerCase();
+    var list = q.isEmpty
+        ? merged
+        : merged
+            .where(
+              (r) =>
+                  r.name.toLowerCase().contains(q) ||
+                  r.address.toLowerCase().contains(q),
+            )
+            .toList();
+
+    if (_sortByPrice) {
+      list = List<Recycler>.from(list)
+        ..sort(
+          (a, b) => (b.indicativePrice ?? 0).compareTo(a.indicativePrice ?? 0),
+        );
+    } else {
+      // API / authorized orgs stay on top, then nearest.
+      list = List<Recycler>.from(list)
+        ..sort((a, b) {
+          if (a.isDemo != b.isDemo) return a.isDemo ? 1 : -1;
+          if (a.isAuthorized != b.isAuthorized) {
+            return a.isAuthorized ? -1 : 1;
+          }
+          return a.distanceKm.compareTo(b.distanceKm);
+        });
+    }
+
+    if (!mounted) return;
     setState(() {
       _recyclers = list;
       _isLoading = false;
@@ -112,6 +164,7 @@ class _RecyclerMatchingScreenState extends State<RecyclerMatchingScreen> {
         _selectedRecycler = _recyclers.first;
       } else {
         _selectedRecycler = null;
+        _errorMessage = 'No recyclers found for this filter.';
       }
     });
   }

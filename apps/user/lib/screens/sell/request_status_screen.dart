@@ -7,7 +7,7 @@ import '../../models/sell_draft.dart';
 import '../../models/sell_request.dart';
 import '../../repositories/sell_request_repository.dart';
 import '../../repositories/vendor_repository.dart';
-import 'sell_payment_screen.dart';
+import 'receive_upi_payment_screen.dart';
 
 class RequestStatusScreen extends StatefulWidget {
   final String? requestId;
@@ -74,9 +74,9 @@ class _RequestStatusScreenState extends State<RequestStatusScreen> {
         return 'Scrap collect ho gaya. Weight record ho raha hai.';
       case 'WEIGHT_RECORDED':
       case 'AMOUNT_CALCULATED':
-        return 'Weight ke hisaab se amount ready. Payment complete karein.';
+        return 'Weight ke hisaab se amount ready. Continue to payment pe UPI scanner khulega — aapko paise milenge.';
       case 'PAYMENT_COMPLETED':
-        return 'Payment complete. Dhanyavaad!';
+        return 'Payment receive ho gaya. Dhanyavaad!';
       case 'REJECTED':
         return '${req.vendorName} ne request Reject kar di. Dusra kabadiwala try karein.';
       default:
@@ -115,10 +115,15 @@ class _RequestStatusScreenState extends State<RequestStatusScreen> {
       note: req.note,
     );
 
-    // Same Razorpay Test checkout used on shop-visit "Continue to payment".
+    // Customer receives money — open UPI scanner, keep collector request linked.
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => SellPaymentScreen(draft: draft)),
+      MaterialPageRoute(
+        builder: (_) => ReceiveUpiPaymentScreen(
+          draft: draft,
+          existingRequestId: req.id,
+        ),
+      ),
     );
   }
 

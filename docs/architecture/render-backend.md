@@ -32,12 +32,9 @@ can take 30–60s; the Flutter app probes Render with a long timeout.
 | `CORS_ORIGINS` | yes | Vercel dashboard + local Vite |
 | `FIREBASE_PROJECT_ID` | if phone auth | Public project id |
 
-6. After first deploy with DB: open Render **Shell** on the web service and run:
-
-```bash
-npm run migrate
-npm run seed
-```
+6. Schema: `services/backend/src/server.js` runs `migrate up` on every boot
+   (idempotent). Fresh Render Postgres gets tables + reference rates from
+   `007_reference_data.sql` automatically after deploy.
 
 7. Verify:
 

@@ -230,9 +230,13 @@ import {
           finalAmount,
         });
 
-        // Status is usually set by confirm; refresh UI from backend.
-        const updatedLots = await updateLotStatus(lot.id, "Completed");
-        setLots(updatedLots);
+        // Confirm already settles + completes; status patch is best-effort.
+        try {
+          const updatedLots = await updateLotStatus(lot.id, "Completed");
+          setLots(updatedLots);
+        } catch {
+          /* confirm succeeded — ignore idempotent status patch failures */
+        }
         setCompleted(true);
       } catch (err) {
         setError(

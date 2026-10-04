@@ -20,7 +20,13 @@ class BackendUrl {
       'https://kabadiwala-backend-chd4.onrender.com';
 
   static const String _override = String.fromEnvironment('BACKEND_URL');
-  static const String _lan = String.fromEnvironment('LAN_BACKEND_URL');
+
+  /// Laptop Wi‑Fi IP so physical phones hit the same local Postgres as the
+  /// recycler dashboard (signed-up orgs live there, not only on Render).
+  static const String _lan = String.fromEnvironment(
+    'LAN_BACKEND_URL',
+    defaultValue: 'http://10.1.121.107:5000',
+  );
 
   static String _strip(String url) {
     var v = url.trim();
@@ -57,14 +63,14 @@ class BackendUrl {
 
     // Explicit dart-define wins (local debug).
     add(_override);
+    // Prefer LAN so collector + recycler dashboard share local orgs/lots.
+    add(_lan);
     // Saved cloud URL from a previous successful probe.
     if (_savedRoot != null && _isCloud(_savedRoot!)) {
       add(_savedRoot!);
     }
-    // Production default — no LAN / same-Wi‑Fi.
+    // Production cloud fallback.
     add(productionRoot);
-    // Optional LAN only when developer sets LAN_BACKEND_URL.
-    add(_lan);
     // Local debug leftovers (last resort).
     add('http://10.0.2.2:5000');
     add('http://127.0.0.1:5000');
