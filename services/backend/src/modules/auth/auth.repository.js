@@ -454,7 +454,11 @@ async function createRecyclerUserWithProfile({
     );
 
     return {
-      user: toUser({ ...user, recycler_id: profile.id }),
+      user: toUser({
+        ...user,
+        recycler_id: profile.id,
+        organisation_name: profile.organisation_name ?? organisationName,
+      }),
     };
   });
 }

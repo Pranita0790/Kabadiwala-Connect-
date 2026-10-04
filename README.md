@@ -294,7 +294,12 @@ Backend API
 
 The deployed backend is available at:
 
-kabadiwala-backend-69wr.onrender.com/api
+https://kabadiwala-backend-69wr.onrender.com/api
+
+Deploy / env checklist: `docs/architecture/render-backend.md`  
+Blueprint file: `render.yaml` (Render → New → Blueprint).
+
+Collector + recycler dashboard default to this cloud URL (no same-Wi‑Fi laptop IP).
 
 Testing
 

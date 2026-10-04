@@ -1,0 +1,46 @@
+# Render Blueprint — Kabadiwala Connect Node backend
+# Dashboard: https://dashboard.render.com → New → Blueprint → this repo
+#
+# After first deploy, set secret env vars in the Render dashboard
+# (GEMINI_API_KEY, JWT_SECRET, etc). See docs/architecture/render-backend.md
+
+databases:
+  - name: kabadiwala-db
+    plan: free
+    databaseName: kabadiwala
+    user: kabadiwala
+
+services:
+  - type: web
+    name: kabadiwala-backend
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: services/backend
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health/live
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kabadiwala-db
+          property: connectionString
+      - key: DB_SSL
+        value: "true"
+      - key: DB_REQUIRED
+        value: "true"
+      - key: CORS_ORIGINS
+        value: https://kabadiwala-connect-xi.vercel.app,http://localhost:5173,http://localhost:5174
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: AI_SERVICE_TIMEOUT_MS
+        value: "45000"

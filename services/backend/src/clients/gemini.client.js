@@ -316,9 +316,9 @@ async function analyzeImage({ fileBuffer, mimetype, weightKg }) {
   const mime = (mimetype || "image/jpeg").toLowerCase();
   const candidateModels = [
     config.ai.geminiModel,
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.8-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
     "gemini-flash-latest",
   ].filter((v, i, a) => v && a.indexOf(v) === i);
 
@@ -375,23 +375,14 @@ async function analyzeImage({ fileBuffer, mimetype, weightKg }) {
   }
 
   if (!parsed) {
-    // If all upstream Gemini attempts fail or return errors, provide a reliable fallback shape
-    logger.warn("All Gemini upstream model attempts failed, using safe fallback", {
-      error: lastError?.message,
-    });
-    parsed = {
-      material: "pcb",
-      electronic_device: "Electronic Scrap / Circuit Board",
-      short_description: "Automated scan identified electronic scrap / recyclable components.",
-      confidence: 0.85,
-      suggested_condition: "scrap",
-      estimated_weight_kg: weightKg || 2.5,
-      suggestions: [
-        "Store in a dry location away from moisture.",
-        "Categorize as Motherboard / PCB for maximum recovery value.",
-        "Ensure safe handling and do not crush components.",
-      ],
-    };
+    const detail =
+      lastError?.response?.data?.error?.message ||
+      lastError?.message ||
+      "unknown error";
+    logger.warn("All Gemini upstream model attempts failed", { error: detail });
+    throw new UpstreamUnavailableError(
+      `Gemini classify failed for models [${candidateModels.join(", ")}]: ${detail}`
+    );
   }
 
   return {
@@ -401,17 +392,286 @@ async function analyzeImage({ fileBuffer, mimetype, weightKg }) {
 }
 
 const TOP_RECYCLERS = [
+  { name: "Shree Laxmi Precious Metal Refiners", category: "Precious Metals", best_for: ["silver", "gold", "precious"], rate_per_kg: 80000, distance_km: 4.8, address: "Budhwar Peth, Pune" },
   { name: "Vidyut High-Grade Copper Refiners", category: "Non-Ferrous Metals", best_for: ["cable", "copper_wire", "non_ferrous", "brass"], rate_per_kg: 650, distance_km: 3.5, address: "Marketyard, Pune" },
+  { name: "Pune Aluminium & Non-Ferrous Yard", category: "Aluminium", best_for: ["aluminium", "aluminum", "non_ferrous"], rate_per_kg: 165, distance_km: 5.6, address: "Bhosari MIDC, Pune" },
   { name: "Florus Recycling Pvt. Ltd. (MPCB 14,500 MT/A)", category: "E-Waste", best_for: ["pcb", "e_waste", "display", "appliances"], rate_per_kg: 535, distance_km: 4.2, address: "Wadhu Khurd, Haveli, Pune" },
   { name: "Mahalaxmi E-Waste Dismantlers & Smelters", category: "E-Waste", best_for: ["pcb", "battery", "e_waste"], rate_per_kg: 520, distance_km: 5.1, address: "Ramtekdi Hadapsar, Pune" },
   { name: "Eco-Recycling Ltd. (Ecoreco Vasai)", category: "Lithium & E-Waste", best_for: ["battery", "e_waste", "pcb"], rate_per_kg: 560, distance_km: 14.5, address: "Sheetal Ind Park, Vasai, Palghar" },
   { name: "Chloride Metal Ltd. (MPCB 72,000 MT/A)", category: "Battery Waste", best_for: ["battery", "lead_acid"], rate_per_kg: 105, distance_km: 12.8, address: "Markal, Khed, Pune" },
-  { name: "Agarwal Plastics Pvt. Ltd.", category: "Plastic Waste", best_for: ["mixed_plastics", "plastic", "pet"], rate_per_kg: 55, distance_km: 4.1, address: "Kudalwadi, Chikhali, Pune" },
+  { name: "Agarwal Plastics Pvt. Ltd.", category: "Plastic Waste", best_for: ["mixed_plastics", "plastic", "pet", "mixed"], rate_per_kg: 55, distance_km: 4.1, address: "Kudalwadi, Chikhali, Pune" },
   { name: "Indrayani Ferrocast Pvt. Ltd.", category: "Ferrous & Steel", best_for: ["ferrous", "iron", "steel"], rate_per_kg: 46, distance_km: 13.5, address: "Alandi Markal Road, Khed, Pune" },
   { name: "Tata International Vehicle Applications (RVSF)", category: "Vehicle Scrapping", best_for: ["vehicle_scrapping", "motor", "heavy_appliances"], rate_per_kg: 44, distance_km: 17.5, address: "Santosh Nagar, Khed, Pune" },
   { name: "Chaitanya Malhar Crumbs & Reclaim Pvt. Ltd.", category: "Tyre Waste", best_for: ["tyre", "rubber"], rate_per_kg: 19, distance_km: 28.0, address: "Kolvihire, Purandar, Pune" },
   { name: "Divya Industries (MPCB Lube Refiner)", category: "Used Oil", best_for: ["used_oil", "waste_oil"], rate_per_kg: 45, distance_km: 15.5, address: "Chakan MIDC Phase II, Pune" },
 ];
+
+/** User-declared material hints for copilot (text/voice). Order = priority. */
+const COPILOT_MATERIAL_HINTS = [
+  {
+    id: "silver",
+    category_name: "Silver Scrap",
+    rate_per_kg: 80000,
+    patterns: [/silver/i, /cha+n+di/i, /चाँदी/, /चांदी/, /सिल्वर/, /सिल्‍वर/],
+  },
+  {
+    id: "copper_wire",
+    category_name: "Copper Wire",
+    rate_per_kg: 650,
+    patterns: [/copper\s*wire/i, /copper/i, /cable/i, /तार/, /तांब[ेा]/, /तांबे/, /तांबा/],
+  },
+  {
+    id: "aluminium",
+    category_name: "Aluminium Scrap",
+    rate_per_kg: 165,
+    patterns: [/aluminium/i, /aluminum/i, /अॅल्युमिनियम/, /एल्युमिनियम/, /अल्युमिनियम/],
+  },
+  {
+    id: "brass",
+    category_name: "Brass Scrap",
+    rate_per_kg: 420,
+    patterns: [/brass/i, /पितळ/, /पीतल/],
+  },
+  {
+    id: "iron",
+    category_name: "Iron / Steel Scrap",
+    rate_per_kg: 46,
+    patterns: [/\biron\b/i, /\bsteel\b/i, /लोहा/, /लोखंड/, /स्टील/],
+  },
+  {
+    id: "battery",
+    category_name: "Batteries",
+    rate_per_kg: 135,
+    patterns: [/battery/i, /batteries/i, /बैटर/],
+  },
+  {
+    id: "pcb",
+    category_name: "Motherboard / PCB",
+    rate_per_kg: 535,
+    patterns: [/motherboard/i, /\bpcb\b/i, /circuit\s*board/i, /मदरबोर्ड/],
+  },
+  {
+    id: "paper",
+    category_name: "Paper",
+    rate_per_kg: 15,
+    patterns: [/\bpaper\b/i, /कागद/, /कागज/],
+  },
+  {
+    id: "mixed_plastics",
+    category_name: "Plastic",
+    rate_per_kg: 55,
+    patterns: [/plastic/i, /प्लास्टिक/],
+  },
+];
+
+function parseWeightKgFromMessage(message) {
+  const text = String(message || "");
+  const match = text.match(
+    /(\d+(?:\.\d+)?)\s*(?:killo|kilo|kg|kgs|kilogram|kilograms|किलो|किलो그램)/i
+  );
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function inferMaterialFromMessage(message) {
+  const text = String(message || "");
+  if (!text.trim()) return null;
+  for (const hint of COPILOT_MATERIAL_HINTS) {
+    if (hint.patterns.some((re) => re.test(text))) {
+      return hint;
+    }
+  }
+  return null;
+}
+
+function findRecyclerForMaterial(materialId) {
+  const key = String(materialId || "").toLowerCase();
+  return (
+    TOP_RECYCLERS.find((r) =>
+      (r.best_for || []).some((tag) => String(tag).toLowerCase() === key)
+    ) || TOP_RECYCLERS.find((r) => (r.best_for || []).includes("copper_wire"))
+  );
+}
+
+function buildLocalizedCopilotReply({ language, categoryName, weightKg, rate, recycler }) {
+  const langCode = (language || "en").toLowerCase();
+  const isMr = langCode.startsWith("mr");
+  const isHi = langCode.startsWith("hi");
+  const total = Math.round(rate * weightKg);
+  if (isMr) {
+    return `तुमच्या ${weightKg} किलो ${categoryName} साठी अंदाजे ₹${total} मिळू शकते (≈ ₹${rate}/किलो). ${recycler.name} हा सर्वोत्तम जवळचा खरेदीदार आहे. शुद्धता तपासूनच अंतिम भाव ठरवा — फोटो/मजकूर हे पूर्ण खात्री देत नाही.`;
+  }
+  if (isHi) {
+    return `आपके ${weightKg} किलो ${categoryName} का अनुमानित मूल्य लगभग ₹${total} है (≈ ₹${rate}/किलो)। ${recycler.name} अभी सबसे बेहतर नज़दीकी खरीदार है। शुद्धता जाँच के बाद ही अंतिम भाव तय करें — फोटो/टेक्स्ट से धातु की पुष्टि नहीं होती।`;
+  }
+  return `For your ${weightKg} kg of ${categoryName}, estimated value is about ₹${total} (≈ ₹${rate}/kg). ${recycler.name} is the best nearby buyer from our list. Confirm purity before final deal — text/photo alone cannot prove elemental composition.`;
+}
+
+function buildCopilotFallback({ message, language = "en" }) {
+  const langCode = (language || "en").toLowerCase();
+  const isMr = langCode.startsWith("mr");
+  const isHi = langCode.startsWith("hi");
+  const inferred = inferMaterialFromMessage(message);
+
+  // Chit-chat / unclear text — do NOT invent a Copper Wire valuation.
+  if (!inferred) {
+    return {
+      reply: isMr
+        ? "मी Kabadiwala AI Copilot आहे. कृपया साहित्य सांगा (उदा. चांदी, तांबे, बॅटरी) किंवा स्क्रॅपचा फोटो पाठवा — मग मी दर आणि खरेदीदार सुचवेन."
+        : isHi
+        ? "मैं Kabadiwala AI Copilot हूँ। कृपया सामग्री बताएँ (जैसे चाँदी, तांबे, बैटरी) या स्क्रैप की फोटो भेजें — फिर मैं रेट और खरीदार बताऊँगा।"
+        : "I am Kabadiwala AI Copilot. Tell me the scrap material (e.g. silver, copper, battery) or send a photo — then I will suggest rates and a buyer.",
+      detected_material: null,
+      category_name: null,
+      estimated_weight_kg: null,
+      suggested_rate_per_kg: null,
+      total_estimated_value_inr: null,
+      best_paying_recycler: null,
+      suggested_actions: isMr
+        ? ["चांदी भाव", "तांब्याची वायर", "फोटो पाठवा"]
+        : isHi
+        ? ["चाँदी का भाव", "तांबे का तार", "फोटो भेजें"]
+        : ["Silver rate", "Copper wire", "Send photo"],
+      can_create_lot: false,
+    };
+  }
+
+  const materialId = inferred.id;
+  const categoryName = inferred.category_name;
+  const weightKg = parseWeightKgFromMessage(message) || 5.0;
+  const recycler = findRecyclerForMaterial(materialId);
+  const rate = Number(recycler?.rate_per_kg) || inferred.rate_per_kg || 0;
+  const total = Math.round(rate * weightKg);
+
+  return {
+    reply: buildLocalizedCopilotReply({
+      language: langCode,
+      categoryName,
+      weightKg,
+      rate,
+      recycler,
+    }),
+    detected_material: materialId,
+    category_name: categoryName,
+    estimated_weight_kg: weightKg,
+    suggested_rate_per_kg: rate,
+    total_estimated_value_inr: total,
+    best_paying_recycler: {
+      name: recycler.name,
+      rate_per_kg: rate,
+      distance_km: recycler.distance_km,
+      address: recycler.address,
+      reason: "Best matching authorized buyer for the declared material",
+    },
+    suggested_actions: isMr
+      ? ["लॉट तयार करा (Create Lot)", "रिफायनरला कॉल करा", "ताजा दर तपासा"]
+      : isHi
+      ? ["लॉट बनाएं (Create Lot)", "रीसाइक्लर को कॉल करें", "ताज़ा रेट देखें"]
+      : ["Create Lot", "Call Recycler", "Check Live Rates"],
+    can_create_lot: true,
+  };
+}
+
+/**
+ * Keep Gemini's natural reply, but correct material/rate/recycler when the
+ * user clearly named a material (e.g. "silver" must not become copper).
+ */
+function finalizeCopilotResult(raw, { message, language = "en" } = {}) {
+  const inferred = inferMaterialFromMessage(message);
+  const weightFromMessage = parseWeightKgFromMessage(message);
+  const base =
+    raw && typeof raw === "object"
+      ? raw
+      : buildCopilotFallback({ message, language });
+
+  // No scrap material in user text — keep chat reply, never show invented valuation.
+  // (Gemini sometimes invents Copper Wire for "love you" / greetings; strip it.)
+  if (!inferred && !weightFromMessage) {
+    const reply = String(base.reply || "").trim();
+    if (!reply) {
+      return buildCopilotFallback({ message, language });
+    }
+    return {
+      ...base,
+      reply,
+      detected_material: null,
+      category_name: null,
+      estimated_weight_kg: null,
+      suggested_rate_per_kg: null,
+      total_estimated_value_inr: null,
+      best_paying_recycler: null,
+      can_create_lot: false,
+      suggested_actions: Array.isArray(base.suggested_actions)
+        ? base.suggested_actions
+        : buildCopilotFallback({ message, language }).suggested_actions,
+    };
+  }
+
+  const materialId = inferred?.id || String(base.detected_material || "").toLowerCase();
+  if (!materialId) {
+    return buildCopilotFallback({ message, language });
+  }
+  const categoryName =
+    inferred?.category_name || String(base.category_name || "Scrap");
+  const weightKg =
+    weightFromMessage ||
+    (Number(base.estimated_weight_kg) > 0 ? Number(base.estimated_weight_kg) : 5);
+  const recycler = findRecyclerForMaterial(materialId);
+  const rate =
+    Number(recycler?.rate_per_kg) ||
+    inferred?.rate_per_kg ||
+    Number(base.suggested_rate_per_kg) ||
+    0;
+  const total = Math.round(rate * weightKg);
+
+  const modelMaterial = String(base.detected_material || "").toLowerCase();
+  const mustFixMaterial =
+    Boolean(inferred) &&
+    modelMaterial !== inferred.id &&
+    !(inferred.id === "copper_wire" && ["cable", "copper_wire"].includes(modelMaterial));
+
+  // Prefer Gemini wording when material already matches; rewrite if wrong.
+  const reply = mustFixMaterial
+    ? buildLocalizedCopilotReply({
+        language,
+        categoryName,
+        weightKg,
+        rate,
+        recycler,
+      })
+    : String(base.reply || "").trim() ||
+      buildLocalizedCopilotReply({
+        language,
+        categoryName,
+        weightKg,
+        rate,
+        recycler,
+      });
+
+  return {
+    ...base,
+    reply,
+    detected_material: materialId,
+    category_name: categoryName,
+    estimated_weight_kg: weightKg,
+    suggested_rate_per_kg: rate,
+    total_estimated_value_inr: total,
+    best_paying_recycler: {
+      name: recycler.name,
+      rate_per_kg: rate,
+      distance_km: recycler.distance_km,
+      address: recycler.address,
+      reason:
+        (base.best_paying_recycler && base.best_paying_recycler.reason) ||
+        "Best matching authorized buyer for the declared material",
+    },
+    suggested_actions: Array.isArray(base.suggested_actions)
+      ? base.suggested_actions
+      : buildCopilotFallback({ message, language }).suggested_actions,
+    can_create_lot: true,
+  };
+}
 
 async function chatWithAssistant({ message, language = "en", imageBase64, mimetype, context = {} }) {
   const langCode = (language || "en").toLowerCase();
@@ -422,29 +682,37 @@ async function chatWithAssistant({ message, language = "en", imageBase64, mimety
       ? "Respond ENTIRELY in clear, respectful Hindi language (हिन्दी)."
       : "Respond in clear English.";
 
-  const prompt = `You are Kabadiwala Connect AI Copilot — an expert AI assistant for informal waste collectors in India.
+  const prompt = `You are Kabadiwala Connect AI Copilot — a live advisor for informal waste collectors in India.
 ${langPrompt}
-User query or voice transcript: "${message || "Analyze this scrap and suggest the best rate and recycler"}"
-Available Top Recyclers: ${JSON.stringify(TOP_RECYCLERS)}
-Context: ${JSON.stringify(context)}
+User message: "${String(message || "").replace(/"/g, "'")}"
+Authorized buyer list (use only these for recommendations): ${JSON.stringify(TOP_RECYCLERS)}
+Extra context: ${JSON.stringify(context)}
 
-Analyze the scrap, determine material category, estimate weight/value, recommend the best paying recycler from the list above, and return JSON ONLY:
+STRICT rules:
+1. Answer THIS user message dynamically. Never reuse a previous copper-wire template.
+2. If the user names a material (silver/chandi, copper, aluminium, iron, battery, PCB, paper, plastic), use THAT material. Never map silver → copper_wire.
+3. Pick the recycler whose best_for tags best match the material. Silver/precious → precious-metal buyer.
+4. Read weight from the message when present (kg/kilo/किलो). If missing, ask OR assume 5 kg and say it is an assumption.
+5. suggested_rate_per_kg MUST equal the chosen recycler's rate_per_kg. total = round(rate * weight).
+6. For greetings/chit-chat with NO scrap material and NO photo: friendly short reply, set can_create_lot=false, set valuation fields to null, do NOT invent Copper Wire.
+7. Do not claim text/photo proves exact metal purity.
+8. Return JSON ONLY (no markdown):
 {
-  "reply": "2-3 sentences in ${langCode.startsWith('mr') ? 'Marathi' : langCode.startsWith('hi') ? 'Hindi' : 'English'} explaining the scrap valuation, why the recommended recycler pays the best, and a bargaining tip.",
-  "detected_material": "pcb | copper_wire | battery | motor | crt | lcd_panel | paper | mixed",
-  "category_name": "Human-readable category",
-  "estimated_weight_kg": number,
-  "suggested_rate_per_kg": number,
-  "total_estimated_value_inr": number,
+  "reply": "2-3 natural sentences about THIS query",
+  "detected_material": "silver|copper_wire|aluminium|brass|iron|pcb|battery|motor|crt|lcd_panel|paper|mixed_plastics|mixed|null",
+  "category_name": "Human label or null",
+  "estimated_weight_kg": number_or_null,
+  "suggested_rate_per_kg": number_or_null,
+  "total_estimated_value_inr": number_or_null,
   "best_paying_recycler": {
-    "name": "Recycler Name",
+    "name": "from list",
     "rate_per_kg": number,
     "distance_km": number,
-    "address": "Recycler Address",
-    "reason": "Why this buyer pays the highest"
-  },
-  "suggested_actions": ["3 short quick action phrases in the requested language"],
-  "can_create_lot": true
+    "address": "from list",
+    "reason": "why this buyer"
+  } | null,
+  "suggested_actions": ["3 short chips in the reply language"],
+  "can_create_lot": true_or_false
 }`;
 
   const parts = [{ text: prompt }];
@@ -459,9 +727,9 @@ Analyze the scrap, determine material category, estimate weight/value, recommend
 
   const candidateModels = [
     config.ai.geminiModel,
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.8-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
     "gemini-flash-latest",
   ].filter((v, i, a) => v && a.indexOf(v) === i);
 
@@ -493,40 +761,15 @@ Analyze the scrap, determine material category, estimate weight/value, recommend
         .join("\n");
 
       if (text) {
-        return JSON.parse(stripFences(text));
+        const parsed = JSON.parse(stripFences(text));
+        return finalizeCopilotResult(parsed, { message, language: langCode });
       }
     } catch (e) {
       logger.warn(`Chat attempt with ${model} failed: ${e.message}`);
     }
   }
 
-  const isMr = langCode.startsWith("mr");
-  const isHi = langCode.startsWith("hi");
-  return {
-    reply: isMr
-      ? "तुमच्या स्क्रॅपसाठी विद्युत हाय-ग्रेड कॉपर रिफायनर्स (गुलटेकडी) तुम्हाला ₹650/किलो सर्वोत्तम दर देईल. तांब्याची तार वेगळी ठेवल्यास 15% जास्ती नफा मिळेल."
-      : isHi
-      ? "आपके स्क्रैप के लिए विद्युत हाई-ग्रेड कॉपर रिफाइनर्स (गुलटेकडी) आपको सबसे बेहतरीन ₹650/किलो का भाव देगा। तांबे का तार अलग रखने से 15% अधिक मुनाफा होगा।"
-      : "For your scrap, Vidyut High-Grade Copper Refiners pays the highest benchmark rate of ₹650/kg. Segregate copper wire cleanly for maximum margin.",
-    detected_material: "copper_wire",
-    category_name: "Copper Wire",
-    estimated_weight_kg: 5.0,
-    suggested_rate_per_kg: 650,
-    total_estimated_value_inr: 3250,
-    best_paying_recycler: {
-      name: "Vidyut High-Grade Copper Refiners",
-      rate_per_kg: 650,
-      distance_km: 3.5,
-      address: "Marketyard, Pune",
-      reason: "Direct smelter with no middleman margin",
-    },
-    suggested_actions: isMr
-      ? ["लॉट तयार करा (Create Lot)", "रिफायनरला कॉल करा", "ताजा दर तपासा"]
-      : isHi
-      ? ["लॉट बनाएं (Create Lot)", "रीसाइक्लर को कॉल करें", "ताज़ा रेट देखें"]
-      : ["Create Lot", "Call Recycler", "Check Live Rates"],
-    can_create_lot: true,
-  };
+  return buildCopilotFallback({ message, language: langCode });
 }
 
 async function generateRecyclerLotAudit({ lotData }) {
@@ -565,6 +808,10 @@ module.exports = {
   generateRecyclerLotAudit,
   toAnalyzeShape,
   normalizeMaterial,
+  inferMaterialFromMessage,
+  parseWeightKgFromMessage,
+  buildCopilotFallback,
+  finalizeCopilotResult,
   MINERAL_MAP,
   ESTIMATED_RATES,
 };

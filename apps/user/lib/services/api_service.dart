@@ -85,18 +85,47 @@ class ApiService {
   final http.Client _client = http.Client();
   String? _authToken;
 
+  /// Explicit override: `--dart-define=BACKEND_URL=http://10.1.121.107:5000`
+  static const String _overrideRoot = String.fromEnvironment('BACKEND_URL');
+
+  /// Laptop Wi‑Fi IP for physical phones on the same network.
+  /// Override with `--dart-define=LAN_BACKEND_URL=http://YOUR_IP:5000` if IP changes.
   static const String _lanRoot = String.fromEnvironment(
-    'BACKEND_URL',
-    defaultValue: 'http://10.1.106.69:5000',
+    'LAN_BACKEND_URL',
+    defaultValue: 'http://10.1.121.107:5000',
   );
 
-  static const List<String> apiBaseUrls = [
-    '$_lanRoot/api',
-    'http://10.0.2.2:5000/api',
-    'http://127.0.0.1:5000/api',
-    'http://localhost:5000/api',
-    'https://kabadiwala-backend-69wr.onrender.com/api',
-  ];
+  static const String _cloudRoot =
+      'https://kabadiwala-backend-69wr.onrender.com';
+
+  /// Last base that answered (kept for the process lifetime).
+  static String? _activeApiBase;
+
+  static List<String> get apiBaseUrls {
+    final roots = <String>[
+      if (_overrideRoot.trim().isNotEmpty) _overrideRoot.trim(),
+      // Prefer LAN over Render for local phone testing — Render free tier often sleeps.
+      if (_lanRoot.trim().isNotEmpty) _lanRoot.trim(),
+      'http://10.0.2.2:5000',
+      _cloudRoot,
+      'http://127.0.0.1:5000',
+    ];
+    final bases = roots
+        .map((r) => r.endsWith('/') ? '${r.substring(0, r.length - 1)}/api' : '$r/api')
+        .toList();
+    if (_activeApiBase != null) {
+      bases.remove(_activeApiBase);
+      bases.insert(0, _activeApiBase!);
+    }
+    return bases;
+  }
+
+  static Duration _timeoutFor(String base) {
+    if (base.contains('onrender.com') || base.startsWith('https://')) {
+      return const Duration(seconds: 45);
+    }
+    return const Duration(seconds: 5);
+  }
 
   void setAuthToken(String? token) {
     _authToken = (token != null && token.isNotEmpty) ? token : null;
@@ -119,7 +148,8 @@ class ApiService {
       try {
         final response = await _client
             .get(Uri.parse('$base$path'), headers: _headers)
-            .timeout(const Duration(seconds: 5));
+            .timeout(_timeoutFor(base));
+        _activeApiBase = base;
         return response;
       } catch (_) {}
     }
@@ -135,7 +165,8 @@ class ApiService {
               headers: _headers,
               body: json.encode(body),
             )
-            .timeout(const Duration(seconds: 8));
+            .timeout(_timeoutFor(base));
+        _activeApiBase = base;
         return response;
       } catch (_) {}
     }

@@ -600,7 +600,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _showServerUrlDialog(BuildContext context, AppLocalizations loc) async {
     final controller = TextEditingController(text: BackendUrl.displayUrl);
-    final saved = await showDialog<bool>(
+    final saved = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(loc.translate('laptopServer')),
@@ -613,7 +613,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               controller: controller,
               keyboardType: TextInputType.url,
               decoration: const InputDecoration(
-                hintText: 'http://10.1.106.69:5000',
+                hintText: 'https://kabadiwala-backend-69wr.onrender.com',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -621,17 +621,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(dialogContext, 'cancel'),
             child: Text(loc.translate('cancel')),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(dialogContext, 'cloud'),
+            child: const Text('Use Render'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'save'),
             child: Text(loc.translate('save')),
           ),
         ],
       ),
     );
-    if (saved == true && controller.text.trim().isNotEmpty) {
+    if (saved == 'cloud') {
+      await BackendUrl.useProductionCloud();
+      if (!context.mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(loc.translate('laptopServerSaved'))),
+      );
+    } else if (saved == 'save' && controller.text.trim().isNotEmpty) {
       await BackendUrl.saveOverride(controller.text);
       if (!context.mounted) return;
       setState(() {});

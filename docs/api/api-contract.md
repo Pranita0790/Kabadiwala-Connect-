@@ -464,6 +464,47 @@ unreachable → `503`, missing file → `400` (`NO_IMAGE`).
 AI output is an inference, not proof of elemental composition (AGENTS.md
 section 7); clients must word critical-mineral results as "potential".
 
+### `POST /api/ai/copilot` — optional auth
+
+Multilingual scrap advisor (text and optional photo). Backend calls **Gemini**
+when configured; otherwise a material-aware local fallback. Answers are
+**dynamic per message** — chit-chat must not invent a Copper Wire valuation.
+
+| Field         | Type   | Required | Notes                                      |
+|---------------|--------|----------|--------------------------------------------|
+| `message`     | string | yes*     | User text (*or send `imageBase64`).        |
+| `language`    | string | no       | `en` / `hi` / `mr` (default `hi`).         |
+| `imageBase64` | string | no       | JPEG/PNG bytes, base64 (no data-URL).      |
+| `mimetype`    | string | no       | Default `image/jpeg`.                      |
+| `context`     | object | no       | Optional client hints.                     |
+
+```json
+{
+  "success": true,
+  "data": {
+    "reply": "For your 5 kg of Silver Scrap…",
+    "detected_material": "silver",
+    "category_name": "Silver Scrap",
+    "estimated_weight_kg": 5,
+    "suggested_rate_per_kg": 80000,
+    "total_estimated_value_inr": 400000,
+    "best_paying_recycler": {
+      "name": "Shree Laxmi Precious Metal Refiners",
+      "rate_per_kg": 80000,
+      "distance_km": 4.8,
+      "address": "Budhwar Peth, Pune",
+      "reason": "Best matching authorized buyer for the declared material"
+    },
+    "suggested_actions": ["Create Lot", "Call Recycler", "Check Live Rates"],
+    "can_create_lot": true
+  }
+}
+```
+
+When there is no scrap material (greetings / unclear text), valuation fields
+are `null` and `can_create_lot` is `false`. Clients should hide the valuation
+card unless `can_create_lot` is true and rates are present.
+
 ---
 
 ## 13. Graceful degradation (no database)
@@ -471,7 +512,8 @@ section 7); clients must word critical-mineral results as "potential".
 The process starts even when `DATABASE_URL` is not configured.
 
 - `/health` (liveness), `/health/live`, `POST /api/ai/analyze`,
-  `/api/pickup-requests`, and `/api/collector-rates` work without a database.
+  `POST /api/ai/copilot`, `/api/pickup-requests`, and `/api/collector-rates`
+  work without a database.
 - `/api/user/*` needs the database (shared JWT auth).
 - Every other `/api/*` route answers `503` with code `DATABASE_NOT_CONFIGURED`
   rather than a connection error.

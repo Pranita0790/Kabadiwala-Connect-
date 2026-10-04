@@ -1,6 +1,8 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ??
-  `http://${typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost"}:5001/api`;
+  (import.meta.env.DEV
+    ? "http://127.0.0.1:5000/api"
+    : "https://kabadiwala-backend-69wr.onrender.com/api");
 
 export async function runAiRecyclerAudit(lotData: {
   id?: string;
@@ -165,7 +167,7 @@ export async function apiFetch<T = unknown>(
     });
   } catch {
     throw new Error(
-      "Cannot reach backend. Confirm the API is running on http://localhost:5000."
+      "Cannot reach backend. Confirm Render is up: https://kabadiwala-backend-69wr.onrender.com/health/live"
     );
   }
 

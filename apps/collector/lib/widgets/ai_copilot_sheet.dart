@@ -221,81 +221,244 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
     String? imagePath,
   }) async {
     try {
-      final root = await BackendUrl.resolve();
-      final uri = Uri.parse('$root/api/ai/copilot');
-      final res = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'message': query,
-          'language': _activeLang,
-          'imageBase64': imageBase64,
-          'mimetype': 'image/jpeg',
-        }),
-      ).timeout(const Duration(seconds: 14));
+      await BackendUrl.resolve(force: true);
+      final roots = <String>{
+        BackendUrl.root,
+        ...BackendUrl.rootCandidates,
+      };
 
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body)['data'];
-        final replyText = data['reply'] ?? '';
-
-        setState(() {
-          _messages.add({
-            'isUser': false,
-            'text': replyText,
-            'chips': (data['suggested_actions'] as List?)?.map((e) => e.toString()).toList() ?? [],
-            'valuation': data['total_estimated_value_inr'] != null
-                ? {
-                    'material': data['detected_material'] ?? 'copper_wire',
-                    'category_name': data['category_name'] ?? 'Copper Wire',
-                    'weight_kg': (data['estimated_weight_kg'] as num?)?.toDouble() ?? 5.0,
-                    'rate_per_kg': (data['suggested_rate_per_kg'] as num?)?.toInt() ?? 650,
-                    'total_value': (data['total_estimated_value_inr'] as num?)?.toInt() ?? 3250,
-                    'best_recycler': data['best_paying_recycler'],
-                    'imagePath': imagePath,
-                  }
-                : null,
-          });
-        });
-
-        if (replyText.isNotEmpty) {
-          _speak(replyText);
+      http.Response? res;
+      Object? lastError;
+      for (final root in roots) {
+        try {
+          final uri = Uri.parse('$root/api/ai/copilot');
+          final candidate = await http
+              .post(
+                uri,
+                headers: {'Content-Type': 'application/json'},
+                body: json.encode({
+                  'message': query,
+                  'language': _activeLang,
+                  'imageBase64': imageBase64,
+                  'mimetype': 'image/jpeg',
+                }),
+              )
+              .timeout(const Duration(seconds: 45));
+          if (candidate.statusCode == 200) {
+            BackendUrl.rememberRoot(root);
+            res = candidate;
+            break;
+          }
+          lastError = candidate.statusCode;
+        } catch (e) {
+          lastError = e;
         }
-      } else {
-        _addFallback();
+      }
+
+      if (res == null || res.statusCode != 200) {
+        BackendUrl.lastError = lastError?.toString();
+        _addFallback(query);
+        return;
+      }
+
+      final body = json.decode(res.body);
+      final data = body is Map ? (body['data'] ?? body) : null;
+      if (data is! Map) {
+        _addFallback(query);
+        return;
+      }
+
+      final replyText = (data['reply'] ?? '').toString().trim();
+      final total = (data['total_estimated_value_inr'] as num?)?.toInt();
+      final rate = (data['suggested_rate_per_kg'] as num?)?.toInt();
+      final material = data['detected_material']?.toString();
+      final category = data['category_name']?.toString();
+      final canCreate = data['can_create_lot'] == true;
+      final showValuation = canCreate &&
+          total != null &&
+          total > 0 &&
+          rate != null &&
+          rate > 0 &&
+          material != null &&
+          material.isNotEmpty &&
+          material.toLowerCase() != 'null';
+
+      if (!mounted) return;
+      setState(() {
+        _messages.add({
+          'isUser': false,
+          'text': replyText.isNotEmpty
+              ? replyText
+              : (_activeLang == 'hi'
+                  ? 'जवाब नहीं मिला। सामग्री का नाम लिखें या फोटो भेजें।'
+                  : 'No answer yet. Name a material or send a photo.'),
+          'chips': (data['suggested_actions'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [],
+          'valuation': showValuation
+              ? {
+                  'material': material,
+                  'category_name': category ?? material,
+                  'weight_kg':
+                      (data['estimated_weight_kg'] as num?)?.toDouble() ?? 5.0,
+                  'rate_per_kg': rate,
+                  'total_value': total,
+                  'best_recycler': data['best_paying_recycler'],
+                  'imagePath': imagePath,
+                }
+              : null,
+        });
+      });
+
+      if (replyText.isNotEmpty) {
+        _speak(replyText);
       }
     } catch (_) {
-      _addFallback();
+      _addFallback(query);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _addFallback() {
+  Map<String, dynamic> _inferOfflineValuation(String query) {
+    final lower = query.toLowerCase();
+    final weightMatch = RegExp(
+      r'(\d+(?:\.\d+)?)\s*(?:killo|kilo|kg|kgs|kilogram|kilograms|किलो|किलोграм)',
+      caseSensitive: false,
+    ).firstMatch(query);
+    final weightKg = double.tryParse(weightMatch?.group(1) ?? '') ?? 5.0;
+
+    if (lower.contains('silver') ||
+        query.contains('चाँदी') ||
+        query.contains('चांदी') ||
+        lower.contains('chandi')) {
+      return {
+        'material': 'silver',
+        'category_name': 'Silver Scrap',
+        'weight_kg': weightKg,
+        'rate_per_kg': 80000,
+        'buyer': 'Shree Laxmi Precious Metal Refiners',
+        'address': 'Budhwar Peth, Pune',
+        'distance_km': 4.8,
+      };
+    }
+    if (lower.contains('aluminium') ||
+        lower.contains('aluminum') ||
+        query.contains('एल्युमिनियम') ||
+        query.contains('अॅल्युमिनियम')) {
+      return {
+        'material': 'aluminium',
+        'category_name': 'Aluminium Scrap',
+        'weight_kg': weightKg,
+        'rate_per_kg': 165,
+        'buyer': 'Pune Aluminium & Non-Ferrous Yard',
+        'address': 'Bhosari MIDC, Pune',
+        'distance_km': 5.6,
+      };
+    }
+    if (lower.contains('iron') ||
+        lower.contains('steel') ||
+        query.contains('लोहा') ||
+        query.contains('लोखंड')) {
+      return {
+        'material': 'iron',
+        'category_name': 'Iron / Steel Scrap',
+        'weight_kg': weightKg,
+        'rate_per_kg': 46,
+        'buyer': 'Indrayani Ferrocast Pvt. Ltd.',
+        'address': 'Alandi Markal Road, Khed, Pune',
+        'distance_km': 13.5,
+      };
+    }
+
+    if (lower.contains('copper') ||
+        lower.contains('cable') ||
+        query.contains('तांबे') ||
+        query.contains('तांब') ||
+        query.contains('तार')) {
+      return {
+        'material': 'copper_wire',
+        'category_name': 'Copper Wire',
+        'weight_kg': weightKg,
+        'rate_per_kg': 650,
+        'buyer': 'Vidyut High-Grade Copper Refiners',
+        'address': 'Marketyard, Pune',
+        'distance_km': 3.5,
+      };
+    }
+
+    return {
+      'material': 'unknown',
+      'category_name': 'Unknown',
+      'weight_kg': weightKg,
+      'rate_per_kg': 0,
+      'buyer': '',
+      'address': '',
+      'distance_km': 0,
+    };
+  }
+
+  void _addFallback([String query = '']) {
     final isMr = _activeLang == 'mr';
     final isEn = _activeLang == 'en';
+    final inferred = _inferOfflineValuation(query);
+    final material = inferred['material'] as String?;
+
+    // Offline chit-chat — never invent Copper Wire.
+    if (material == null || material == 'unknown') {
+      final text = isMr
+          ? 'सर्व्हरशी संपर्क झाला नाही. कृपया साहित्य सांगा (चांदी/तांबे/बॅटरी) किंवा फोटो पाठवा.'
+          : isEn
+              ? 'Could not reach Gemini just now. Name a scrap material (silver/copper/battery) or send a photo.'
+              : 'अभी Gemini से जवाब नहीं मिला। सामग्री लिखें (चाँदी/तांबे/बैटरी) या फोटो भेजें।';
+      setState(() {
+        _messages.add({
+          'isUser': false,
+          'text': text,
+          'chips': isMr
+              ? ['चांदी भाव', 'तांब्याची वायर', 'फोटो पाठवा']
+              : isEn
+                  ? ['Silver rate', 'Copper wire', 'Send photo']
+                  : ['चाँदी भाव', 'तांबे का तार', 'फोटो भेजें'],
+          'valuation': null,
+        });
+      });
+      return;
+    }
+
+    final weightKg = (inferred['weight_kg'] as num).toDouble();
+    final rate = inferred['rate_per_kg'] as int;
+    final total = (rate * weightKg).round();
+    final category = inferred['category_name'] as String;
+    final buyer = inferred['buyer'] as String;
 
     final text = isMr
-        ? 'तुमच्या स्क्रॅपसाठी "विद्युत हाय-ग्रेड कॉपर रिफायनर्स" सर्वात जास्त म्हणजे ₹650/किलो दर देईल. तांब्याची तार आणि बॅटरी वेगळी ठेवा.'
+        ? 'तुमच्या ${weightKg.toStringAsFixed(weightKg == weightKg.roundToDouble() ? 0 : 1)} किलो $category साठी अंदाजे ₹$total (≈ ₹$rate/किलो). $buyer जवळचा सर्वोत्तम खरेदीदार आहे. शुद्धता तपासूनच भाव ठरवा.'
         : isEn
-            ? 'For high-purity copper and motherboards, "Vidyut High-Grade Copper Refiners" pays the highest rate of ₹650/kg.'
-            : 'आपके स्क्रैप के लिए "विद्युत हाई-ग्रेड कॉपर रिफाइनर्स" सबसे ज़्यादा ₹650/किलो का भाव देगा। तार छीलकर बेचने से बेहतर मुनाफा मिलेगा।';
+            ? 'For your ${weightKg.toStringAsFixed(weightKg == weightKg.roundToDouble() ? 0 : 1)} kg of $category, estimated value is about ₹$total (≈ ₹$rate/kg). $buyer is the best nearby buyer. Confirm purity before the final deal.'
+            : 'आपके ${weightKg.toStringAsFixed(weightKg == weightKg.roundToDouble() ? 0 : 1)} किलो $category का अनुमानित मूल्य लगभग ₹$total है (≈ ₹$rate/किलो)। $buyer नज़दीकी बेहतर खरीदार है। शुद्धता जाँच के बाद ही भाव तय करें।';
 
     setState(() {
       _messages.add({
         'isUser': false,
         'text': text,
-        'chips': isMr ? ['लॉट तयार करा', 'दर तपासा'] : ['लॉट बनाएं', 'रेट देखें'],
+        'chips': isMr
+            ? ['लॉट तयार करा', 'दर तपासा', 'कॉल करा']
+            : isEn
+                ? ['Create Lot', 'Call Recycler', 'Check Live Rates']
+                : ['लॉट बनाएं', 'रेट देखें', 'कॉल करें'],
         'valuation': {
-          'material': 'copper_wire',
-          'category_name': 'Copper Wire',
-          'weight_kg': 10.0,
-          'rate_per_kg': 650,
-          'total_value': 6500,
+          'material': material,
+          'category_name': category,
+          'weight_kg': weightKg,
+          'rate_per_kg': rate,
+          'total_value': total,
           'best_recycler': {
-            'name': 'Vidyut High-Grade Copper Refiners',
-            'rate_per_kg': 650,
-            'distance_km': 3.5,
-            'address': 'Marketyard, Pune',
+            'name': buyer,
+            'rate_per_kg': rate,
+            'distance_km': inferred['distance_km'],
+            'address': inferred['address'],
           },
         },
       });

@@ -1,11 +1,11 @@
 class AppConstants {
   static const String appName = 'Kabadiwala Connect';
 
-  /// Android emulator loopback to the host machine. Physical devices must pass
-  /// `--dart-define=BACKEND_URL=http://YOUR_LAN_IP:5000`.
+  /// Public Render API by default (no same-Wi‑Fi). Override for local Node:
+  /// `--dart-define=BACKEND_URL=http://10.0.2.2:5000`.
   static const String backendBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'http://10.0.2.2:5000',
+    defaultValue: 'https://kabadiwala-backend-69wr.onrender.com',
   );
 
   static const String apiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');

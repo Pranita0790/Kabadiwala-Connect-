@@ -2,11 +2,11 @@ import 'package:http/http.dart' as http;
 import '../core/constants/app_constants.dart';
 import 'database_service.dart';
 
-/// Resolves which host the collector app should use for Node (`:5000`).
+/// Resolves which host the collector app should use for Node.
 ///
-/// Physical phone on Wi‑Fi → laptop LAN IP (`LAN_BACKEND_URL`).
-/// USB debug → `127.0.0.1` only after `adb reverse tcp:5000 tcp:5000`.
-/// Emulator → `10.0.2.2`.
+/// Default: public Render URL (any network — no same-Wi‑Fi required).
+/// Optional local debug: `--dart-define=BACKEND_URL=http://10.0.2.2:5000`
+/// or Profile → Server URL.
 class BackendUrl {
   BackendUrl._();
 
@@ -15,11 +15,12 @@ class BackendUrl {
   static String? _savedRoot;
   static String? lastError;
 
+  /// Cloud API — keep in sync with docs/architecture/render-backend.md
+  static const String productionRoot =
+      'https://kabadiwala-backend-69wr.onrender.com';
+
   static const String _override = String.fromEnvironment('BACKEND_URL');
-  static const String _lan = String.fromEnvironment(
-    'LAN_BACKEND_URL',
-    defaultValue: 'http://10.1.121.20:5001',
-  );
+  static const String _lan = String.fromEnvironment('LAN_BACKEND_URL');
 
   static String _strip(String url) {
     var v = url.trim();
@@ -35,6 +36,17 @@ class BackendUrl {
     return host == '127.0.0.1' || host == 'localhost';
   }
 
+  static bool _isCloud(String url) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    return host.endsWith('onrender.com') || url.startsWith('https://');
+  }
+
+  static Duration _probeTimeout(String base) {
+    // Render free tier cold-start can exceed 30s.
+    if (_isCloud(base)) return const Duration(seconds: 55);
+    return const Duration(seconds: 3);
+  }
+
   static List<String> get rootCandidates {
     final out = <String>[];
     void add(String raw) {
@@ -43,17 +55,20 @@ class BackendUrl {
       if (!out.contains(v)) out.add(v);
     }
 
+    // Explicit dart-define wins (local debug).
     add(_override);
-    if (_savedRoot != null && !_isLoopback(_savedRoot!)) {
+    // Saved cloud URL from a previous successful probe.
+    if (_savedRoot != null && _isCloud(_savedRoot!)) {
       add(_savedRoot!);
     }
-    add('http://127.0.0.1:5001');
-    add('http://10.1.121.20:5001');
+    // Production default — no LAN / same-Wi‑Fi.
+    add(productionRoot);
+    // Optional LAN only when developer sets LAN_BACKEND_URL.
     add(_lan);
-    add('http://10.0.2.2:5001');
+    // Local debug leftovers (last resort).
+    add('http://10.0.2.2:5000');
     add('http://127.0.0.1:5000');
-    add('http://10.1.121.20:5000');
-    if (_savedRoot != null && _isLoopback(_savedRoot!)) {
+    if (_savedRoot != null && !_isCloud(_savedRoot!)) {
       add(_savedRoot!);
     }
     return out;
@@ -75,8 +90,6 @@ class BackendUrl {
       final saved = await DatabaseService.instance.getSetting(_settingKey);
       if (saved != null && saved.trim().isNotEmpty) {
         _savedRoot = _strip(saved);
-        // Do not trust a saved URL until /health succeeds (old USB reverse
-        // often left 127.0.0.1 stuck in SQLite).
       }
     } catch (_) {}
   }
@@ -87,6 +100,11 @@ class BackendUrl {
     _resolvedRoot = cleaned;
     lastError = null;
     await DatabaseService.instance.saveSetting(_settingKey, cleaned);
+  }
+
+  /// Reset to cloud Render URL (clears stuck LAN / loopback prefs).
+  static Future<void> useProductionCloud() async {
+    await saveOverride(productionRoot);
   }
 
   static Future<String> resolve({http.Client? client, bool force = false}) async {
@@ -102,12 +120,11 @@ class BackendUrl {
     for (final base in rootCandidates) {
       try {
         final res = await httpClient
-            .get(Uri.parse('$base/health'))
-            .timeout(const Duration(milliseconds: 2500));
-        if (res.statusCode < 500) {
+            .get(Uri.parse('$base/health/live'))
+            .timeout(_probeTimeout(base));
+        if (res.statusCode >= 200 && res.statusCode < 300) {
           _resolvedRoot = base;
           lastError = null;
-          // Persist a working LAN URL so the next cold start is faster.
           if (!_isLoopback(base)) {
             try {
               await DatabaseService.instance.saveSetting(_settingKey, base);
@@ -121,17 +138,20 @@ class BackendUrl {
       }
     }
 
-    // Never stay stuck on a dead loopback from a previous session.
     if (_resolvedRoot != null && _isLoopback(_resolvedRoot!)) {
       _resolvedRoot = null;
     }
-    return rootCandidates.first;
+    // Prefer cloud even if probe failed (cold start / offline); offline-first
+    // sync will retry later.
+    _resolvedRoot ??= productionRoot;
+    return _resolvedRoot!;
   }
 
   static void rememberRoot(String rootUrl) {
     final cleaned = _strip(rootUrl);
-    // Avoid locking the app onto phone-local 127.0.0.1 without reverse.
-    if (_isLoopback(cleaned) && _resolvedRoot != null && !_isLoopback(_resolvedRoot!)) {
+    if (_isLoopback(cleaned) &&
+        _resolvedRoot != null &&
+        !_isLoopback(_resolvedRoot!)) {
       return;
     }
     _resolvedRoot = cleaned;

@@ -19,9 +19,10 @@ const path = require("node:path");
 // database it was never meant to touch. Skipping the file also removes
 // dotenv's "missing .env" tip from the test output.
 if (process.env.NODE_ENV !== "test") {
-  require("dotenv").config({
-    path: path.resolve(__dirname, "../../../../.env"),
-  });
+  const dotenv = require("dotenv");
+  // Monorepo root .env (local), then services/backend/.env (Render rootDir).
+  dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
+  dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 }
 
 const isTest = process.env.NODE_ENV === "test";
