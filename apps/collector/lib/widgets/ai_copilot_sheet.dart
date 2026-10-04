@@ -194,17 +194,47 @@ class _AiCopilotSheetState extends State<AiCopilotSheet> {
     }
   }
 
+  static int _simIndex = 0;
+
   Future<void> _simulateVoiceInput() async {
     setState(() => _isListening = true);
 
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
 
-    final voiceQuery = _activeLang == 'mr'
-        ? 'माझ्याकडे 10 किलो तांब्याची वायर आणि 5 मदरबोर्ड आहेत, मला कुठे सर्वात जास्त भाव मिळेल?'
-        : _activeLang == 'en'
-            ? 'I have 10 kg copper wire and 5 motherboards. Which recycler will pay me the highest?'
-            : 'मेरे पास 10 किलो तांबे का तार और 5 मदरबोर्ड हैं, कौन सा रिसाइकिलर सबसे ज़्यादा पैसे देगा?';
+    final hindiQueries = [
+      'मेरे पास 15 किलो बैटरी और इन्वर्टर सेल हैं, कौन सा रिसाइकिलर सबसे ज्यादा रेट देगा?',
+      '25 किलो कंप्यूटर मदरबोर्ड और ग्रीन PCB का आज का क्या रेट चल रहा है?',
+      'कूलर और पंखे की 40 किलो भारी कॉपर मोटर का भाव कितना मिलेगा?',
+      '50 किलो प्लास्टिक की बोतलें और कैन का सबसे अच्छा खरीदार कौन है?',
+      '10 किलो तांबे की तार छीलकर बेचने पर कितना फायदा होगा?',
+      '20 किलो एल्युमिनियम और पुराने लोहे का आज का सही रेट क्या है?',
+      '5 पुराने टीवी और कंप्यूटर स्क्रीन के डिस्प्ले का क्या भाव मिलेगा?',
+    ];
+
+    final marathiQueries = [
+      'माझ्याकडे 15 किलो बॅटरी आणि इन्व्हर्टर सेल्स आहेत, कुठे सर्वात जास्त दर मिळेल?',
+      '25 किलो कॉम्प्युटर मदरबोर्ड आणि PCB चा आजचा काय भाव चालू आहे?',
+      'कूलर आणि फॅनची 40 किलो तांब्याची मोटर किती रुपयांना जाईल?',
+      '50 किलो प्लास्टिक बाटल्या आणि कॅनसाठी सर्वोत्तम खरेदीदार कोण आहे?',
+      '10 किलो तांब्याची वायर प्लास्टिक काढून विकल्यास किती नफा होईल?',
+      '20 किलो ॲल्युमिनियम आणि लोखंडाचा आजचा योग्य दर काय आहे?',
+      '5 जुने टीव्ही आणि मॉनिटर डिस्प्लेचे किती पैसे मिळतील?',
+    ];
+
+    final englishQueries = [
+      'I have 15 kg of lithium & inverter batteries. Which authorized recycler pays the highest?',
+      'What is the live market rate for 25 kg of computer motherboards & high-grade PCBs?',
+      'How much will I get for 40 kg of copper motor windings and heavy appliances?',
+      'Who is the top buyer for 50 kg of industrial plastics and PET scrap?',
+      'How much extra margin if I strip 10 kg of copper wire cleanly?',
+      'What is the benchmark price for 20 kg aluminium scrap and structural iron?',
+      'What is the valuation for 5 CRT & LCD television monitors?',
+    ];
+
+    final list = _activeLang == 'mr' ? marathiQueries : (_activeLang == 'en' ? englishQueries : hindiQueries);
+    final voiceQuery = list[_simIndex % list.length];
+    _simIndex++;
 
     setState(() {
       _isListening = false;
